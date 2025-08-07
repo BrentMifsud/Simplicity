@@ -24,7 +24,7 @@ struct LoginRequest: HTTPRequest {
     var httpMethod: Simplicity.HTTPMethod { .post }
     var headers: [String : String] { [:] }
     var queryItems: [URLQueryItem] { [] }
-    var httpBody: LoginRequestBody
+    var httpBody: RequestBody
     
     // add custom logic to setup your urlrequest here, or you can use the default protocol implementation
     func encodeURLRequest(baseURL: URL) throws -> URLRequest {
@@ -32,12 +32,13 @@ struct LoginRequest: HTTPRequest {
         var urlRequest = URLRequest(url: url)
         urlRequest.allHTTPHeaderFields = headers
         urlRequest.httpMethod = httpMethod.rawValue
+        urlRequest.httpBody = try JSONEncoder().encode(httpBody)
         return urlRequest
     }
     
     // add custom logic to decode your response here, or you can use the default protocol implementation
-    func decodeResponseData(_ data: Data) throws -> String {
-        try JSONDecoder().decode(String.self, from: data)
+    func decodeResponseData(_ data: Data) throws -> ResponseBody {
+        try JSONDecoder().decode(ResponseBody.self, from: data)
     }
 }
 
