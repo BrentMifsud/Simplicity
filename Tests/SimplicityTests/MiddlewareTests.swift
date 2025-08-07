@@ -1,7 +1,7 @@
 import Foundation
 import Testing
 import XCTest
-@testable import Simplicity
+import Simplicity
 
 
 @Suite
