@@ -6,11 +6,11 @@ import PackageDescription
 let package = Package(
     name: "Simplicity",
     platforms: [
-        .iOS(.v13),
-        .macCatalyst(.v13),
-        .tvOS(.v13),
-        .watchOS(.v6),
-        .macOS(.v10_15)
+        .iOS(.v16),
+        .macCatalyst(.v16),
+        .tvOS(.v16),
+        .watchOS(.v9),
+        .macOS(.v13)
     ],
     products: [
         .library(
@@ -28,3 +28,4 @@ let package = Package(
         ),
     ]
 )
+
