@@ -1,10 +1,3 @@
-//
-//  README.md
-//  Simplicity
-//
-//  Created by Brent Mifsud on 2025-08-06.
-//
-
 # Simplicity
 
 Simplicity is a super simple HTTP Client library that makes it easy to make type safe HTTP requests.
