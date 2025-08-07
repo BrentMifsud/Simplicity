@@ -27,7 +27,7 @@ jobs:
       - name: Set up latest Swift release (with cache)
         uses: swift-actions/setup-swift@v2
         with:
-          swift-version: "latest"
+          swift-version: "6"
           cache: true
 
       - name: Display Swift version
