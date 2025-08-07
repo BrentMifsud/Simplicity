@@ -19,10 +19,19 @@ jobs:
       matrix:
         os: [macos-latest, ubuntu-latest]
     steps:
-      - name: Check out selected branch
+      - name: Check out selected or triggering branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.branch }}
+          ref: ${{ github.event.inputs.branch || github.ref_name }}
+
+      - name: Set up latest Swift release (with cache)
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "latest"
+          cache: true
+
+      - name: Display Swift version
+        run: swift --version
 
       - name: Run Swift tests
         run: swift test
