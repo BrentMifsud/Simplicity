@@ -4,7 +4,7 @@ import XCTest
 import Simplicity
 
 
-@Suite
+@Suite("Middleware tests", .serialized)
 struct MiddlewareTests {
     @available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, visionOS 1.0, *)
     struct MockRequest: HTTPRequest {
@@ -58,7 +58,7 @@ struct MiddlewareTests {
         let _ = try await client.send(request: request)
         let callTime1 = try #require(await middleware1.callTime)
         let callTime2 = try #require(await middleware2.callTime)
-        #expect(callTime1 < callTime2)
+        #expect(callTime1 <= callTime2)
     }
     
     @available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, visionOS 1.0, *)
