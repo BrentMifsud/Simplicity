@@ -7,7 +7,7 @@
 
 import Foundation
 
-protocol HTTPRequest: Sendable {
+public protocol HTTPRequest: Sendable {
     associatedtype RequestBody: Encodable & Sendable
     associatedtype ResponseBody: Decodable & Sendable
     static var operationID: String { get }

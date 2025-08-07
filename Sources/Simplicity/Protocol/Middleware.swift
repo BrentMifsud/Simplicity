@@ -7,7 +7,7 @@
 
 import Foundation
 
-protocol Middleware: Sendable {
+public protocol Middleware: Sendable {
     func intercept(
         request: URLRequest,
         baseURL: URL,

@@ -6,14 +6,19 @@
 //
 
 import Foundation
+import Simplicity
 
 actor MiddlewareSpy: Middleware {
     private(set) var callTime: Date?
     private let mutation: (@Sendable (URLRequest, URL, String) -> (URLRequest, URL, String))?
-    private let postCondition: ((Data, HTTPURLResponse) -> Void)?
+    private let postResponseOperation: ((Data, HTTPURLResponse) -> Void)?
     
-    init(mutation: (@Sendable (URLRequest, URL, String) -> (URLRequest, URL, String))? = nil) {
+    init(
+        mutation: (@Sendable (URLRequest, URL, String) -> (URLRequest, URL, String))? = nil,
+        postResponseOperation: ((Data, HTTPURLResponse) -> Void)? = nil
+    ) {
         self.mutation = mutation
+        self.postResponseOperation = postResponseOperation
     }
     
     func intercept(
@@ -35,9 +40,9 @@ actor MiddlewareSpy: Middleware {
             operationID = newOperationID
         }
         
-        if let postCondition {
+        if let postResponseOperation {
             let response = try await next(request, baseURL, operationID)
-            postCondition(response.data, response.response)
+            postResponseOperation(response.data, response.response)
             return response
         } else {
             return try await next(request, baseURL, operationID)

@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum HTTPStatusCode: Int, Sendable {
+public enum HTTPStatusCode: Int, Sendable {
     // 1xx Informational
     case `continue` = 100
     case switchingProtocols = 101
@@ -81,7 +81,7 @@ enum HTTPStatusCode: Int, Sendable {
     case notExtended = 510
     case networkAuthenticationRequired = 511
     
-    var isSuccess: Bool {
+    public var isSuccess: Bool {
         (200..<300) ~= self.rawValue
     }
 }
