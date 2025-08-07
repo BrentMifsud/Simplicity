@@ -8,44 +8,41 @@
 import Foundation
 import Simplicity
 
-actor MiddlewareSpy: Middleware {
+actor MiddlewareSpy<Req: HTTPRequest>: Middleware {
     private(set) var callTime: Date?
-    private let mutation: (@Sendable (URLRequest, URL, String) -> (URLRequest, URL, String))?
-    private let postResponseOperation: ((Data, HTTPURLResponse) -> Void)?
+    private let mutation: ((Req, URL) -> (Req, URL))?
+    private let postResponseOperation: ((HTTPResponse<Req.ResponseBody>) -> Void)?
     
     init(
-        mutation: (@Sendable (URLRequest, URL, String) -> (URLRequest, URL, String))? = nil,
-        postResponseOperation: ((Data, HTTPURLResponse) -> Void)? = nil
+        mutation: ((Req, URL) -> (Req, URL))? = nil,
+        postResponseOperation: ((HTTPResponse<Req.ResponseBody>) -> Void)? = nil
     ) {
         self.mutation = mutation
         self.postResponseOperation = postResponseOperation
     }
     
-    func intercept(
-        request: URLRequest,
+    func intercept<Request: HTTPRequest>(
+        request: Request,
         baseURL: URL,
-        operationID: String,
-        next: @Sendable (URLRequest, URL, String) async throws -> (data: Data, response: HTTPURLResponse)
-    ) async throws -> (data: Data, response: HTTPURLResponse) {
+        next: @Sendable (Request, URL) async throws -> HTTPResponse<Request.ResponseBody>
+    ) async throws -> HTTPResponse<Request.ResponseBody> {
         callTime = Date()
         
-        var request = request
-        var baseURL = baseURL
-        var operationID = operationID
+        var requestVar = request
+        var baseURLVar = baseURL
         
-        if let mutation {
-            let (newRequest, newBaseURL, newOperationID) = mutation(request, baseURL, operationID)
-            request = newRequest
-            baseURL = newBaseURL
-            operationID = newOperationID
+        if let mutation = mutation {
+            let (newRequest, newBaseURL) = mutation(requestVar as! Req, baseURLVar)
+            requestVar = newRequest as! Request
+            baseURLVar = newBaseURL
         }
         
-        if let postResponseOperation {
-            let response = try await next(request, baseURL, operationID)
-            postResponseOperation(response.data, response.response)
-            return response
-        } else {
-            return try await next(request, baseURL, operationID)
+        let response = try await next(requestVar, baseURLVar)
+        
+        if let postResponseOperation = postResponseOperation {
+            postResponseOperation(response as! HTTPResponse<Req.ResponseBody>)
         }
+        
+        return response
     }
 }

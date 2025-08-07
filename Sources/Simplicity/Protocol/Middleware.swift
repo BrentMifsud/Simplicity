@@ -7,11 +7,35 @@
 
 import Foundation
 
+public struct HTTPResponse<ResponseBody: Sendable>: Sendable {
+    public let statusCode: HTTPStatusCode
+    public let headers: [String: String]
+    public let url: URL?
+    public let body: ResponseBody?
+    public let rawData: Data?
+    
+    public init(
+        statusCode: HTTPStatusCode,
+        headers: [String: String],
+        url: URL?,
+        body: ResponseBody?,
+        rawData: Data?
+    ) {
+        self.statusCode = statusCode
+        self.headers = headers
+        self.url = url
+        self.body = body
+        self.rawData = rawData
+    }
+}
+
 public protocol Middleware: Sendable {
-    func intercept(
-        request: URLRequest,
+    func intercept<Request: HTTPRequest>(
+        request: Request,
         baseURL: URL,
-        operationID: String,
-        next: @Sendable (_ request: URLRequest, _ baseURL: URL, _ operationID: String) async throws -> (data: Data, response: HTTPURLResponse)
-    ) async throws -> (data: Data, response: HTTPURLResponse)
+        next: @Sendable (
+            _ request: Request,
+            _ baseURL: URL
+        ) async throws -> HTTPResponse<Request.ResponseBody>
+    ) async throws -> HTTPResponse<Request.ResponseBody>
 }

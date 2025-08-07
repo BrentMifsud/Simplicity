@@ -13,9 +13,9 @@ struct MiddlewareTests {
 
         static let operationID: String = "Test"
         var path: String { "/test" }
-        var httpMethod: Simplicity.HTTPMethod { .get }
-        var headers: [String : String] { [:] }
-        var queryItems: [URLQueryItem] { [] }
+        var httpMethod: Simplicity.HTTPMethod = .get
+        var headers: [String : String] = [:]
+        var queryItems: [URLQueryItem] = []
         var httpBody: Never? { nil }
 
         func encodeURLRequest(baseURL: URL) throws -> URLRequest {
@@ -34,8 +34,8 @@ struct MiddlewareTests {
     @available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, visionOS 1.0, *)
     @Test("Middleware call order is correct")
     func middlewareCallOrder() async throws {
-        let middleware1 = MiddlewareSpy()
-        let middleware2 = MiddlewareSpy()
+        let middleware1 = MiddlewareSpy<MockRequest>()
+        let middleware2 = MiddlewareSpy<MockRequest>()
         
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
@@ -64,10 +64,10 @@ struct MiddlewareTests {
     @available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, visionOS 1.0, *)
     @Test("Middleware does correctly mutate value")
     func middlewareMutation() async throws {
-        let middleware = MiddlewareSpy { request, baseURL, operationID in
+        let middleware = MiddlewareSpy<MockRequest> { request, baseURL in
             var request = request
-            request.allHTTPHeaderFields = ["accepts": "application/json"]
-            return (request, baseURL, operationID)
+            request.headers = ["accepts": "application/json"]
+            return (request, baseURL)
         }
         
         let config = URLSessionConfiguration.ephemeral
@@ -95,13 +95,13 @@ struct MiddlewareTests {
     @available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, visionOS 1.0, *)
     @Test("Post middleware is called after the request completion")
     func postMiddlewareCallOrder() async throws {
-        let middleware = MiddlewareSpy(
+        let middleware = MiddlewareSpy<MockRequest>(
             mutation: nil,
-            postResponseOperation: { data, response in
+            postResponseOperation: { response in
                 do {
-                    let dataString = try #require(String(data: data, encoding: .utf8))
-                    #expect(dataString == "\"Test\"")
-                    #expect(response.statusCode == 200)
+                    let dataString = try #require(response.body)
+                    #expect(dataString == "Test")
+                    #expect(response.statusCode == .ok)
                 } catch {
                     Issue.record(error)
                 }

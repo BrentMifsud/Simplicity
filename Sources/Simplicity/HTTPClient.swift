@@ -35,8 +35,9 @@ public struct HTTPClient {
     /// - Returns: The decoded response body of type `Request.ResponseBody`.
     /// - Throws: Any error thrown by the request encoding, network transport, middleware, or response decoding.
     public func send<Request: HTTPRequest>(request: Request) async throws -> Request.ResponseBody {
-        var next: @Sendable (URLRequest, URL, String) async throws -> (Data, HTTPURLResponse) = { [urlSession] (request, body, url) in
-            let (data, response) = try await urlSession.data(for: request)
+        var next: @Sendable (Request, URL) async throws -> HTTPResponse<Request.ResponseBody> = { [urlSession] httpRequest, baseURL in
+            let urlRequest = try httpRequest.encodeURLRequest(baseURL: baseURL)
+            let (data, response) = try await urlSession.data(for: urlRequest)
             
             try Task.checkCancellation()
             
@@ -44,23 +45,42 @@ public struct HTTPClient {
                 throw URLError(.unknown, userInfo: ["reason" : "Response was not an HTTP response"])
             }
             
-            return (data, httpResponse)
+            guard let statusCode = HTTPStatusCode(rawValue: httpResponse.statusCode) else {
+                throw URLError(.badServerResponse, userInfo: ["reason": "Invalid HTTP status code: \(httpResponse.statusCode)"])
+            }
+            
+            let body = try request.decodeResponseData(data)
+            return HTTPResponse<Request.ResponseBody>(
+                statusCode: statusCode,
+                headers: httpResponse.allHeaderFields.reduce(into: [String: String]()) { result, pair in
+                    if let key = pair.key as? String, let value = pair.value as? String {
+                        result[key] = value
+                    }
+                },
+                url: httpResponse.url,
+                body: body,
+                rawData: data
+            )
         }
         
         for middleware in middlewares.reversed() {
             let tmp = next
-            next = { (request, baseURL, operationID) in
+            next = { urlRequest, baseURL in
                 try await middleware.intercept(
-                    request: request,
+                    request: urlRequest,
                     baseURL: baseURL,
-                    operationID: operationID,
                     next: tmp
                 )
             }
         }
         
-        let urlRequest = try request.encodeURLRequest(baseURL: baseURL)
-        let (data, _) = try await next(urlRequest, baseURL, type(of: request).operationID)
-        return try request.decodeResponseData(data)
+        let response = try await next(request, baseURL)
+        
+        guard let body = response.body else {
+            throw URLError(.cannotParseResponse)
+        }
+        
+        return body
     }
 }
+
