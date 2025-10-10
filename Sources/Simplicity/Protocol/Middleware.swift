@@ -7,7 +7,7 @@
 
 public import Foundation
 
-public struct HTTPResponse<ResponseBody: Sendable>: Sendable {
+public nonisolated struct HTTPResponse<ResponseBody: Decodable & Sendable>: Sendable {
     public let statusCode: HTTPStatusCode
     public let headers: [String: String]
     public let url: URL?

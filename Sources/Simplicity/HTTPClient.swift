@@ -8,7 +8,7 @@ public import Foundation
 /// let request = GetUserRequest(userID: "1234")
 /// let user = try await client.send(request: request)
 /// ```
-public struct HTTPClient {
+public nonisolated struct HTTPClient {
     /// The underlying URLSession used to perform requests.
     public let urlSession: URLSession
     /// The base URL used for all requests.

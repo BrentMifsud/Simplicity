@@ -25,7 +25,7 @@ public import Foundation
 ///     let httpBody: Never?
 /// }
 /// ```
-public protocol HTTPRequest: Sendable {
+public nonisolated protocol HTTPRequest: Sendable {
     /// The type of the request body, which must be `Encodable` and `Sendable`.
     associatedtype RequestBody: Encodable & Sendable
     /// The type of the response body, which must be `Decodable` and `Sendable`.

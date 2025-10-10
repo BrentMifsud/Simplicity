@@ -6,7 +6,7 @@
 //
 
 /// Represents the standard HTTP methods used in network requests.
-public enum HTTPMethod: String, Sendable {
+public nonisolated enum HTTPMethod: String, Sendable {
     /// The GET method requests a representation of the specified resource.
     case get = "GET"
     /// The POST method submits data to be processed to a specified resource.

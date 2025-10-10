@@ -9,7 +9,7 @@ import Foundation
 
 /// Represents HTTP status codes as defined in RFC 7231 and related RFCs.
 /// Provides convenient typed access to common HTTP response codes.
-public enum HTTPStatusCode: Int, Sendable {
+public nonisolated enum HTTPStatusCode: Int, Sendable {
     // MARK: - 1xx: Informational responses
     
     /// The request has been received and the process can continue.
