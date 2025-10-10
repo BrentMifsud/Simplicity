@@ -1,4 +1,4 @@
-import Foundation
+public import Foundation
 
 /// An asynchronous HTTP client that supports middleware for request/response interception and transformation.
 ///

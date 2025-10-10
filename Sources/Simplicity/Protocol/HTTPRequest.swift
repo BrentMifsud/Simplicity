@@ -5,7 +5,7 @@
 //  Created by Brent Mifsud on 2025-08-06.
 //
 
-import Foundation
+public import Foundation
 
 /// Defines a type that represents a type-safe HTTP request, including its request and response types, metadata, and encoding/decoding logic.
 ///

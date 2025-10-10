@@ -5,7 +5,7 @@
 //  Created by Brent Mifsud on 2025-08-06.
 //
 
-import Foundation
+public import Foundation
 
 public struct HTTPResponse<ResponseBody: Sendable>: Sendable {
     public let statusCode: HTTPStatusCode

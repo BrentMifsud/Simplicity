@@ -5,7 +5,7 @@
 //  Created by Brent Mifsud on 2025-08-07.
 //
 
-import Foundation
+public import Foundation
 
 /// Encodes Encodable types into `application/x-www-form-urlencoded` data.
 public struct URLFormEncoder {
