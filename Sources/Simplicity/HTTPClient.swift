@@ -34,9 +34,13 @@ public nonisolated struct HTTPClient {
     /// - Parameter request: The request conforming to `HTTPRequest` to send.
     /// - Returns: The decoded response body of type `Request.ResponseBody`.
     /// - Throws: Any error thrown by the request encoding, network transport, middleware, or response decoding.
-    public func send<Request: HTTPRequest>(request: Request) async throws -> Request.ResponseBody {
+    public func send<Request: HTTPRequest>(
+        request: Request,
+        cachePolicy: URLRequest.CachePolicy = .useProtocolCachePolicy
+    ) async throws -> Request.ResponseBody {
         var next: @Sendable (Request, URL) async throws -> HTTPResponse<Request.ResponseBody> = { [urlSession] httpRequest, baseURL in
-            let urlRequest = try httpRequest.encodeURLRequest(baseURL: baseURL)
+            var urlRequest = try httpRequest.encodeURLRequest(baseURL: baseURL)
+            urlRequest.cachePolicy = cachePolicy
             let (data, response) = try await urlSession.data(for: urlRequest)
             
             try Task.checkCancellation()
