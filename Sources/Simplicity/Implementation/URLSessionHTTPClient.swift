@@ -38,7 +38,7 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
         request: Request,
         cachePolicy: CachePolicy = .useProtocolCachePolicy,
         timeout: Duration = .seconds(Int.max)
-    ) async throws -> Request.ResponseBody {
+    ) async throws -> HTTPResponse<Request.ResponseBody> {
         var next: @Sendable (Request, URL) async throws -> HTTPResponse<Request.ResponseBody> = { [urlSession] httpRequest, baseURL in
             var urlRequest = try httpRequest.encodeURLRequest(baseURL: baseURL)
             urlRequest.cachePolicy = cachePolicy.urlRequestCachePolicy
@@ -79,12 +79,6 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
             }
         }
         
-        let response = try await next(request, baseURL)
-        
-        guard let body = response.body else {
-            throw URLError(.cannotParseResponse)
-        }
-        
-        return body
+        return try await next(request, baseURL)
     }
 }
