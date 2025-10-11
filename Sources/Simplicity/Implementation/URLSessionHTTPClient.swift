@@ -40,7 +40,7 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
         timeout: Duration = .seconds(Int.max)
     ) async throws -> HTTPResponse<Request.ResponseBody> {
         var next: @Sendable (Request, URL) async throws -> HTTPResponse<Request.ResponseBody> = { [urlSession] httpRequest, baseURL in
-            var urlRequest = try httpRequest.encodeURLRequest(baseURL: baseURL)
+            var urlRequest = try httpRequest.jsonEncodedURLRequest(baseURL: baseURL)
             urlRequest.cachePolicy = cachePolicy.urlRequestCachePolicy
             let (data, response) = try await urlSession.data(for: urlRequest)
             
@@ -82,3 +82,4 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
         return try await next(request, baseURL)
     }
 }
+

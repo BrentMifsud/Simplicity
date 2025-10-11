@@ -26,15 +26,9 @@ struct LoginRequest: HTTPRequest {
     var queryItems: [URLQueryItem] { [] }
     var httpBody: RequestBody
     
-    // add custom logic to setup your urlrequest here, or you can use the default protocol implementation
-    func encodeURLRequest(baseURL: URL) throws -> URLRequest {
-        let url = baseURL.appending(path: path).appending(queryItems: queryItems)
-        var urlRequest = URLRequest(url: url)
-        urlRequest.allHTTPHeaderFields = headers
-        urlRequest.httpMethod = httpMethod.rawValue
-        urlRequest.httpBody = try JSONEncoder().encode(httpBody)
-        return urlRequest
-    }
+    // No need to implement encodeURLRequest — by default, Simplicity encodes JSON bodies
+    // and sets Content-Type: application/json (and Accept: application/json) when missing.
+    // Override encodeURLRequest if you need a different encoding strategy.
     
     // add custom logic to decode your response here, or you can use the default protocol implementation
     func decodeResponseData(_ data: Data) throws -> ResponseBody {
@@ -62,31 +56,44 @@ struct LoggingMiddleware: Middleware {
         self.logger = logger
     }
     
-    func intercept(
-        request: URLRequest,
+    func intercept<Request: HTTPRequest>(
+        request: Request,
         baseURL: URL,
-        operationID: String,
-        next: @Sendable (URLRequest, URL, String) async throws -> (data: Data, response: HTTPURLResponse)
-    ) async throws -> (data: Data, response: HTTPURLResponse) {
+        next: nonisolated(nonsending) @Sendable (
+            _ request: Request,
+            _ baseURL: URL
+        ) async throws -> HTTPResponse<Request.ResponseBody>
+    ) async throws -> HTTPResponse<Request.ResponseBody> {
+        let urlRequest = try request.encodeURLRequest(baseURL: baseURL)
+    
         // log request information
         logger.info("""
         REQUEST:
-        \(request.httpMethod) \(request.url)
+        \(request.httpMethod) \(baseURL.appending(path: request.path).appending(queryItems: request.queryItems))
         Headers: \(request.allHTTPHeaderFields)
         Query: \(request.query)
         Request Body: \(String(data: request.httpBody!, encoding: .utf8)!)
         """)
         
         // continue on to execute the request
-        let (data, response) = try await next(request, baseURL, operationID)
+        let response = try await next(request, baseURL, operationID)
         
         // log response
         logger.info("""
         RESPONSE:
         HTTP Status: \(response.statusCode)
-        Headers: \(response.allHeaderFields)
+        Headers: \(response.headers)
         Response Body: \(String(data: data, encoding: .utf8)!)
         """)
     }
 }
 ```
+
+## Caching
+
+The provided URLSessionHTTPClient leverages standard URLCache to do its caching. 
+To implement a cache, you would need to provide your own URLSession with configuration as opposed to using the default URLSession implementation.
+
+See [URLCache](https://developer.apple.com/documentation/foundation/urlcache) for details
+
+Custom HTTPClient implementations should implement caching policies as per the `CachePolicy` enum provided. 
