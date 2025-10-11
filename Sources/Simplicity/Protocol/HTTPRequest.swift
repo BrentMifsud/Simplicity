@@ -43,13 +43,6 @@ public nonisolated protocol HTTPRequest: Sendable {
     var queryItems: [URLQueryItem] { get }
     /// The body of the HTTP request, typed as `RequestBody`.
     var httpBody: RequestBody { get }
-    
-    /// Encodes this request as a URLRequest, using the provided base URL.
-    ///
-    /// - Parameter baseURL: The base URL to be combined with the request's path and query items.
-    /// - Returns: A fully formed URLRequest ready for sending.
-    /// - Throws: An error if encoding the request fails.
-    func encodeURLRequest(baseURL: URL) throws -> URLRequest
 
     /// Decodes the HTTP response data into this request's `ResponseBody` type.
     ///
@@ -59,52 +52,14 @@ public nonisolated protocol HTTPRequest: Sendable {
     func decodeResponseData(_ data: Data) throws -> ResponseBody
 }
 
-public extension HTTPRequest where RequestBody: Encodable, ResponseBody: Decodable {
-    
-    /// Default implementation of `encodeURLRequest(baseURL:)`.
-    /// This method constructs the full URL by appending the path and query items to the base URL,
-    /// sets the HTTP method and headers, and encodes the request body to JSON.
-    /// Conformers can override this method for custom behavior.
-    func encodeURLRequest(baseURL: URL) throws -> URLRequest {
-        try baseEncodeURLRequest(baseURL: baseURL)
-    }
-    
+// MARK: Default implementation
+
+extension HTTPRequest where ResponseBody: Decodable {
     /// Default implementation of `decodeResponseData(_:)`.
     /// This method decodes the response data from JSON into the `ResponseBody` type.
     /// Conformers can override this method for custom decoding behavior.
     func decodeResponseData(_ data: Data) throws -> ResponseBody {
         let decoder = JSONDecoder()
         return try decoder.decode(ResponseBody.self, from: data)
-    }
-}
-
-private extension HTTPRequest where RequestBody: Encodable & Sendable {
-    func baseEncodeURLRequest(baseURL: URL) throws -> URLRequest {
-        let url = baseURL.appending(path: path).appending(queryItems: queryItems)
-        var urlRequest = URLRequest(url: url)
-        urlRequest.allHTTPHeaderFields = headers
-        urlRequest.httpMethod = httpMethod.rawValue
-        urlRequest.httpBody = try JSONEncoder().encode(httpBody)
-        return urlRequest
-    }
-}
-
-private extension HTTPRequest where RequestBody == Never {
-    func baseEncodeURLRequest(baseURL: URL) throws -> URLRequest {
-        let url = baseURL.appending(path: path).appending(queryItems: queryItems)
-        var urlRequest = URLRequest(url: url)
-        urlRequest.allHTTPHeaderFields = headers
-        urlRequest.httpMethod = httpMethod.rawValue
-        return urlRequest
-    }
-}
-
-private extension HTTPRequest where RequestBody == Never? {
-    func baseEncodeURLRequest(baseURL: URL) throws -> URLRequest {
-        let url = baseURL.appending(path: path).appending(queryItems: queryItems)
-        var urlRequest = URLRequest(url: url)
-        urlRequest.allHTTPHeaderFields = headers
-        urlRequest.httpMethod = httpMethod.rawValue
-        return urlRequest
     }
 }

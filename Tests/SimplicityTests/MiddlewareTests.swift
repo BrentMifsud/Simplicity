@@ -47,7 +47,7 @@ struct MiddlewareTests {
             return (response, data)
         }
         
-        let client = HTTPClient(
+        let client = URLSessionHTTPClient(
             urlSession: session,
             baseURL: URL(string: "https://www.google.com")!,
             middlewares: [middleware1, middleware2]
@@ -81,7 +81,7 @@ struct MiddlewareTests {
             return (response, data)
         }
         
-        let client = HTTPClient(
+        let client = URLSessionHTTPClient(
             urlSession: session,
             baseURL: URL(string: "https://www.google.com")!,
             middlewares: [middleware]
@@ -118,7 +118,7 @@ struct MiddlewareTests {
             return (response, data)
         }
         
-        let client = HTTPClient(
+        let client = URLSessionHTTPClient(
             urlSession: session,
             baseURL: URL(string: "https://www.google.com")!,
             middlewares: [middleware]

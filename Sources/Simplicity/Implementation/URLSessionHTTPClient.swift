@@ -8,7 +8,7 @@ public import Foundation
 /// let request = GetUserRequest(userID: "1234")
 /// let user = try await client.send(request: request)
 /// ```
-public nonisolated struct HTTPClient {
+public nonisolated struct URLSessionHTTPClient: HTTPClient {
     /// The underlying URLSession used to perform requests.
     public let urlSession: URLSession
     /// The base URL used for all requests.
@@ -34,13 +34,14 @@ public nonisolated struct HTTPClient {
     /// - Parameter request: The request conforming to `HTTPRequest` to send.
     /// - Returns: The decoded response body of type `Request.ResponseBody`.
     /// - Throws: Any error thrown by the request encoding, network transport, middleware, or response decoding.
-    public func send<Request: HTTPRequest>(
+    @concurrent public func send<Request: HTTPRequest>(
         request: Request,
-        cachePolicy: URLRequest.CachePolicy = .useProtocolCachePolicy
+        cachePolicy: CachePolicy = .useProtocolCachePolicy,
+        timeout: Duration = .seconds(Int.max)
     ) async throws -> Request.ResponseBody {
         var next: @Sendable (Request, URL) async throws -> HTTPResponse<Request.ResponseBody> = { [urlSession] httpRequest, baseURL in
             var urlRequest = try httpRequest.encodeURLRequest(baseURL: baseURL)
-            urlRequest.cachePolicy = cachePolicy
+            urlRequest.cachePolicy = cachePolicy.urlRequestCachePolicy
             let (data, response) = try await urlSession.data(for: urlRequest)
             
             try Task.checkCancellation()
@@ -87,4 +88,3 @@ public nonisolated struct HTTPClient {
         return body
     }
 }
-

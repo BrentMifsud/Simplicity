@@ -24,7 +24,7 @@ actor MiddlewareSpy<Req: HTTPRequest>: Middleware {
     func intercept<Request: HTTPRequest>(
         request: Request,
         baseURL: URL,
-        next: @Sendable (Request, URL) async throws -> HTTPResponse<Request.ResponseBody>
+        next: nonisolated(nonsending) @Sendable (Request, URL) async throws -> HTTPResponse<Request.ResponseBody>
     ) async throws -> HTTPResponse<Request.ResponseBody> {
         callTime = Date()
         
