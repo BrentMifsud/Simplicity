@@ -1,21 +1,30 @@
 public import Foundation
 
-/// An asynchronous HTTP client that supports middleware for request/response interception and transformation.
+/// A concrete HTTP client that uses `URLSession` to send requests and receive responses,
+/// with support for a configurable base URL and a chain of middlewares.
+/// 
+/// `URLSessionHTTPClient` conforms to `HTTPClient` and is suitable for most networking
+/// scenarios on Apple platforms. It encodes an `HTTPRequest` into a `URLRequest`,
+/// executes it using the provided `URLSession`, and decodes the response body into
+/// the expected `Request.ResponseBody`.
 ///
-/// Example usage:
-/// ```swift
-/// let client = HTTPClient(baseURL: URL(string: "https://api.example.com")!, middlewares: [MyLoggingMiddleware()])
-/// let request = GetUserRequest(userID: "1234")
-/// let user = try await client.send(request: request)
-/// ```
+/// Features:
+/// - Base URL composition for relative endpoints
+/// - Pluggable middleware chain for request/response interception
+/// - Configurable cache policy per request
+/// - Cooperative cancellation checks during request execution
+///
+/// Thread-safety:
+/// - The type is `nonisolated` and can be used across concurrency domains. Be mindful
+///   that mutating `baseURL` or `middlewares` from multiple tasks at the same time
+///   should be coordinated by the caller if needed. It is intended that you should mutate the baseurl and middle ware sparcely.
+///   For example, when changing the app environment from prod to staging or develop. Or adding an authentication middleware after receiving a bearer token
+///   from an auth api.
 public nonisolated struct URLSessionHTTPClient: HTTPClient {
-    /// The underlying URLSession used to perform requests.
-    public let urlSession: URLSession
-    /// The base URL used for all requests.
-    public let baseURL: URL
-    /// The middleware chain used to intercept, modify, or observe requests and responses.
-    public let middlewares: [any Middleware]
-    
+    let urlSession: URLSession
+    public var baseURL: URL
+    public var middlewares: [any Middleware]
+
     /// Initializes a new HTTPClient instance.
     /// - Parameters:
     ///   - urlSession: The URLSession to use. Defaults to `.shared`.
@@ -26,24 +35,20 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
         self.baseURL = baseURL
         self.middlewares = middlewares
     }
-    
-    /// Sends an HTTP request using the middleware chain, returning the decoded response body.
-    ///
-    /// This method builds the middleware chain, constructs a `URLRequest`, and performs the network call. Each middleware may intercept, modify, or observe the request and response. The final response data is decoded into the expected response type.
-    ///
-    /// - Parameter request: The request conforming to `HTTPRequest` to send.
-    /// - Returns: The decoded response body of type `Request.ResponseBody`.
-    /// - Throws: Any error thrown by the request encoding, network transport, middleware, or response decoding.
-    @concurrent public func send<Request: HTTPRequest>(
+
+    @concurrent
+    public func send<Request: HTTPRequest>(
         request: Request,
         cachePolicy: CachePolicy = .useProtocolCachePolicy,
         timeout: Duration = .seconds(Int.max)
     ) async throws -> HTTPResponse<Request.ResponseBody> {
+        try Task.checkCancellation()
+
         var next: @Sendable (Request, URL) async throws -> HTTPResponse<Request.ResponseBody> = { [urlSession] httpRequest, baseURL in
             var urlRequest = try httpRequest.encodeURLRequest(baseURL: baseURL)
             urlRequest.cachePolicy = cachePolicy.urlRequestCachePolicy
+            try Task.checkCancellation()
             let (data, response) = try await urlSession.data(for: urlRequest)
-            
             try Task.checkCancellation()
             
             guard let httpResponse = response as? HTTPURLResponse else {
@@ -71,7 +76,8 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
         for middleware in middlewares.reversed() {
             let tmp = next
             next = { urlRequest, baseURL in
-                try await middleware.intercept(
+                try Task.checkCancellation()
+                return try await middleware.intercept(
                     request: urlRequest,
                     baseURL: baseURL,
                     next: tmp
@@ -79,7 +85,9 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
             }
         }
         
-        return try await next(request, baseURL)
+        let response = try await next(request, baseURL)
+        try Task.checkCancellation()
+        return response
     }
 }
 
