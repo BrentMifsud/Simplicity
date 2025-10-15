@@ -27,48 +27,46 @@
 /// Concurrency:
 /// - Thread-safety: This type is `Sendable`.
 /// - Isolation: Declared `nonisolated` and can be used freely across concurrency domains.
-
-/// Uses the caching behavior defined by the protocol implementation and server-provided
-/// cache directives (e.g., Cache-Control, ETag, Expires).
-///
-/// This is the default and generally recommended option. The system will consult the
-/// cache and follow HTTP caching semantics to determine whether to return cached data,
-/// revalidate it, or fetch anew.
-
-/// Ignores any locally cached data and fetches the resource from the network.
-/// The response may still be stored in the cache, depending on cache configuration.
-///
-/// Use this when you need the freshest data and can afford a network round trip.
-/// This does not bypass remote caches/proxies that might still serve cached data.
-
-/// Ignores both local cache and any remote/proxy caches, forcing a full end-to-end
-/// fetch from the origin server where possible.
-///
-/// Use this when you must bypass all caching layers. Note that some intermediaries
-/// may still not honor this instruction in all scenarios.
-
-/// Returns cached data if it exists and is valid; otherwise, performs a network load.
-/// This provides a good balance between performance and freshness.
-///
-/// Use this when you want to benefit from cached responses but still fall back to
-/// the network if needed.
-
-/// Returns cached data if it exists and is valid; otherwise, fails without attempting
-/// a network load. This enforces strict offline behavior.
-///
-/// Use this for offline modes or when network access is not desired or permitted.
-
-/// Asks the server to revalidate cached data (using conditional requests such as
-/// If-None-Match/If-Modified-Since). If the cache is still valid, a lightweight
-/// 304 Not Modified response may be returned and the cached data reused.
-///
-/// Use this when you want to ensure freshness while minimizing bandwidth by
-/// leveraging cache validators.
 public nonisolated enum CachePolicy: Sendable {
+    /// Uses the caching behavior defined by the protocol implementation and server-provided
+    /// cache directives (for example, Cache-Control, ETag, and Expires headers).
+    ///
+    /// This is the default behavior. The system consults local caches and follows HTTP
+    /// semantics to determine whether to return cached data, revalidate it, or fetch
+    /// from the network.
     case useProtocolCachePolicy
+
+    /// Ignores any locally cached data and fetches the resource from the network.
+    /// The response may still be stored in the cache depending on configuration and
+    /// response headers.
+    ///
+    /// Use this when you need the freshest data and can afford a full network round trip.
+    /// This does not bypass remote proxies that might still serve cached responses.
     case reloadIgnoringLocalCacheData
+
+    /// Ignores both local caches and attempts to bypass remote/proxy caches, forcing
+    /// an end-to-end fetch from the origin server where possible.
+    ///
+    /// Use this to avoid all caching layers. Note that some intermediaries may not
+    /// fully honor this behavior in all scenarios.
     case reloadIgnoringLocalAndRemoteCacheData
+
+    /// Returns cached data if it exists and is valid; otherwise performs a network load.
+    ///
+    /// This provides a balance between performance and freshness by preferring cache
+    /// hits but falling back to a network request when needed.
     case returnCacheDataElseLoad
+
+    /// Returns cached data if it exists and is valid; otherwise fails without attempting
+    /// a network load.
+    ///
+    /// Use this for strict offline modes or when network access is not desired or permitted.
     case returnCacheDataDontLoad
+
+    /// Revalidates cached data with the server using conditional requests (for example,
+    /// If-None-Match or If-Modified-Since). If the server indicates the cached response
+    /// is still valid, a 304 Not Modified result allows reuse of the cached data.
+    ///
+    /// Use this to ensure freshness while minimizing bandwidth by leveraging cache validators.
     case reloadRevalidatingCacheData
 }
