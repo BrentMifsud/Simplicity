@@ -44,6 +44,27 @@ public nonisolated protocol HTTPRequest: Sendable {
     /// The body of the HTTP request, typed as `RequestBody`.
     var httpBody: RequestBody { get set }
 
+    /// Encodes this request into a `URLRequest` using JSON encoding by default.
+    ///
+    /// Conforming types may override this method to provide alternate encoding strategies
+    /// (e.g., `application/x-www-form-urlencoded`, multipart, or custom formats), or to apply
+    /// additional per-request configuration.
+    ///
+    /// For convenience, default helpers are provided:
+    /// - `jsonEncodedURLRequest(baseURL:)` — builds a request with a JSON-encoded body and sets
+    ///   a `Content-Type: application/json` header when not already present.
+    /// - `formEncodedURLRequest(baseURL:)` — builds a request with an
+    ///   `application/x-www-form-urlencoded` body and sets the corresponding content type when
+    ///   not already present.
+    ///
+    /// You can call either helper from your override to opt into the desired encoding without
+    /// reimplementing common setup.
+    ///
+    /// - Parameter baseURL: The base URL to be combined with the request's path and query items.
+    /// - Returns: A fully formed `URLRequest` ready for sending.
+    /// - Throws: An error if encoding the request fails.
+    func encodeURLRequest(baseURL: URL) throws -> URLRequest
+
     /// Decodes the HTTP response data into this request's `ResponseBody` type.
     ///
     /// - Parameter data: The raw data returned by the HTTP response.
