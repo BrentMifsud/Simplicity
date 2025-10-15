@@ -8,7 +8,7 @@
 import Simplicity
 import Testing
 
-@Suite("URLFormEncoder basic and edge cases")
+@Suite("URLFormEncoder tests")
 struct URLFormEncoderTest {
     struct Simple: Encodable { let name: String; let age: Int; let isActive: Bool }
     struct Nested: Encodable { let user: Simple; let token: String }

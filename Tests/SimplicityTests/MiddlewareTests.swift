@@ -16,7 +16,7 @@ struct MiddlewareTests {
         var httpMethod: Simplicity.HTTPMethod = .get
         var headers: [String : String] = [:]
         var queryItems: [URLQueryItem] = []
-        var httpBody: Never? { nil }
+        var httpBody: Never?
 
         func encodeURLRequest(baseURL: URL) throws -> URLRequest {
             let url = baseURL.appending(path: path).appending(queryItems: queryItems)
@@ -98,13 +98,8 @@ struct MiddlewareTests {
         let middleware = MiddlewareSpy<MockRequest>(
             mutation: nil,
             postResponseOperation: { response in
-                do {
-                    let dataString = try #require(response.body)
-                    #expect(dataString == "Test")
-                    #expect(response.statusCode == .ok)
-                } catch {
-                    Issue.record(error)
-                }
+                #expect(response.httpBody == "Test")
+                #expect(response.statusCode == .ok)
             }
         )
         
