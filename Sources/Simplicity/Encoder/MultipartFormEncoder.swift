@@ -80,12 +80,18 @@ public struct MultipartFormEncoder {
     /// Create a new encoder.
     /// - Parameter boundary: Optional explicit boundary. If nil, a safe random boundary is generated.
     public init(boundary: String? = nil) throws {
-        if let boundary, boundary.isEmpty == false, boundary.contains(" ") == false {
+        if let boundary {
+            guard !boundary.isEmpty else {
+                throw MultipartError.invalidBoundary
+            }
+
+            guard !boundary.contains(" ") else {
+                throw MultipartError.invalidBoundary
+            }
+
             self.boundary = boundary
-        } else if boundary == nil {
-            self.boundary = "Boundary-" + UUID().uuidString.replacingOccurrences(of: "-", with: "")
         } else {
-            throw MultipartError.invalidBoundary
+            self.boundary = "Boundary-" + UUID().uuidString.replacingOccurrences(of: "-", with: "")
         }
     }
 
@@ -154,20 +160,3 @@ private extension String.Encoding {
         }
     }
 }
-
-#if DEBUG
-/// Example helper showing how to build a URLRequest for the avatar upload scenario.
-public func makeAvatarUploadRequest(to url: URL, imageData: Data) throws -> URLRequest {
-    let encoder = try MultipartFormEncoder()
-    let parts: [MultipartFormEncoder.Part] = [
-        .file(name: "avatar", filename: "avatar.jpg", data: imageData, mimeType: "application/octet-stream")
-    ]
-    let body = try encoder.encode(parts: parts, enforceMaxLengthFor: (name: "avatar", maxBytes: 10_240))
-
-    var request = URLRequest(url: url)
-    request.httpMethod = "POST"
-    request.httpBody = body
-    request.setValue(encoder.contentType, forHTTPHeaderField: "Content-Type")
-    return request
-}
-#endif
