@@ -71,26 +71,26 @@ public import Foundation
 ///   - statusCode: The HTTP status code returned by the server.
 ///   - headers: The response headers as a dictionary of field names to values.
 ///   - url: The final URL associated with the response, if available.
-///   - body: The decoded response body, if present and successfully decoded.
+///   - httpBody: The decoded response body, if present and successfully decoded.
 ///   - rawData: The raw response bytes, if captured by the transport.
 public nonisolated struct HTTPResponse<ResponseBody: Decodable & Sendable>: Sendable {
     public let statusCode: HTTPStatusCode
     public let headers: [String: String]
-    public let url: URL?
-    public let body: ResponseBody?
+    public let url: URL
+    public let httpBody: ResponseBody
     public let rawData: Data?
 
     public init(
         statusCode: HTTPStatusCode,
         headers: [String: String],
-        url: URL?,
-        body: ResponseBody?,
-        rawData: Data?
+        url: URL,
+        httpBody: ResponseBody,
+        rawData: Data
     ) {
         self.statusCode = statusCode
         self.headers = headers
         self.url = url
-        self.body = body
+        self.httpBody = httpBody
         self.rawData = rawData
     }
 }

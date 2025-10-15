@@ -40,13 +40,14 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
     public func send<Request: HTTPRequest>(
         request: Request,
         cachePolicy: CachePolicy = .useProtocolCachePolicy,
-        timeout: Duration = .seconds(Int.max)
+        timeout: Duration = .seconds(30)
     ) async throws -> HTTPResponse<Request.ResponseBody> {
         try Task.checkCancellation()
 
         var next: @Sendable (Request, URL) async throws -> HTTPResponse<Request.ResponseBody> = { [urlSession] httpRequest, baseURL in
             var urlRequest = try httpRequest.encodeURLRequest(baseURL: baseURL)
             urlRequest.cachePolicy = cachePolicy.urlRequestCachePolicy
+            urlRequest.timeoutInterval = TimeInterval(timeout.components.seconds)
             try Task.checkCancellation()
             let (data, response) = try await urlSession.data(for: urlRequest)
             try Task.checkCancellation()
@@ -60,15 +61,22 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
             }
             
             let body = try request.decodeResponseData(data)
+
+            guard let url = httpResponse.url ?? urlRequest.url else {
+                throw URLError(.unknown, userInfo: ["reason": "URL is missing from httpResponse or urlRequest"])
+            }
+
             return HTTPResponse<Request.ResponseBody>(
                 statusCode: statusCode,
-                headers: httpResponse.allHeaderFields.reduce(into: [String: String]()) { result, pair in
-                    if let key = pair.key as? String, let value = pair.value as? String {
-                        result[key] = value
-                    }
-                },
-                url: httpResponse.url,
-                body: body,
+                headers: httpResponse.allHeaderFields
+                    .reduce(into: [String: String]()) { result, pair in
+                        if let key = pair.key as? String,
+                           let value = pair.value as? String {
+                            result[key] = value
+                        }
+                    },
+                url: url,
+                httpBody: body,
                 rawData: data
             )
         }
