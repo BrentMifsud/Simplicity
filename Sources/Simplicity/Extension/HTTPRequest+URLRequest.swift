@@ -32,6 +32,18 @@ public extension HTTPRequest {
     }
 }
 
+public extension HTTPRequest {
+    private func constructURL(from baseURL: URL) -> URL {
+        var url = baseURL.appending(path: path)
+
+        if !queryItems.isEmpty {
+            url = url.appending(queryItems: queryItems)
+        }
+
+        return url
+    }
+}
+
 public extension HTTPRequest where RequestBody: Encodable & Sendable {
     /// Encodes this request as a URLRequest, using the provided base URL.
     ///
@@ -39,7 +51,7 @@ public extension HTTPRequest where RequestBody: Encodable & Sendable {
     /// - Returns: A fully formed URLRequest ready for sending.
     /// - Throws: An error if encoding the request fails.
     func jsonEncodedURLRequest(baseURL: URL) throws -> URLRequest {
-        let url = baseURL.appending(path: path).appending(queryItems: queryItems)
+        let url = constructURL(from: baseURL)
         var urlRequest = URLRequest(url: url)
         urlRequest.allHTTPHeaderFields = headers
         urlRequest.httpMethod = httpMethod.rawValue
@@ -61,7 +73,7 @@ public extension HTTPRequest where RequestBody: Encodable & Sendable {
     /// - Returns: A fully formed URLRequest ready for sending.
     /// - Throws: An error if encoding the request fails.
     func formEncodedURLRequest(baseURL: URL) throws -> URLRequest {
-        let url = baseURL.appending(path: path).appending(queryItems: queryItems)
+        let url = constructURL(from: baseURL)
         var urlRequest = URLRequest(url: url)
         urlRequest.allHTTPHeaderFields = headers
         urlRequest.httpMethod = httpMethod.rawValue
@@ -85,7 +97,7 @@ public extension HTTPRequest where RequestBody == Never {
     /// - Returns: A fully formed URLRequest ready for sending.
     /// - Throws: An error if encoding the request fails.
     func jsonEncodedURLRequest(baseURL: URL) throws -> URLRequest {
-        let url = baseURL.appending(path: path).appending(queryItems: queryItems)
+        let url = constructURL(from: baseURL)
         var urlRequest = URLRequest(url: url)
         urlRequest.allHTTPHeaderFields = headers
         urlRequest.httpMethod = httpMethod.rawValue
@@ -102,7 +114,7 @@ public extension HTTPRequest where RequestBody == Never {
     /// - Returns: A fully formed URLRequest ready for sending.
     /// - Throws: An error if encoding the request fails.
     func formEncodedURLRequest(baseURL: URL) throws -> URLRequest {
-        let url = baseURL.appending(path: path).appending(queryItems: queryItems)
+        let url = constructURL(from: baseURL)
         var urlRequest = URLRequest(url: url)
         urlRequest.allHTTPHeaderFields = headers
         urlRequest.httpMethod = httpMethod.rawValue
@@ -121,7 +133,7 @@ public extension HTTPRequest where RequestBody == Never? {
     /// - Returns: A fully formed URLRequest ready for sending.
     /// - Throws: An error if encoding the request fails.
     func jsonEncodedURLRequest(baseURL: URL) throws -> URLRequest {
-        let url = baseURL.appending(path: path).appending(queryItems: queryItems)
+        let url = constructURL(from: baseURL)
         var urlRequest = URLRequest(url: url)
         urlRequest.allHTTPHeaderFields = headers
         urlRequest.httpMethod = httpMethod.rawValue
@@ -138,7 +150,7 @@ public extension HTTPRequest where RequestBody == Never? {
     /// - Returns: A fully formed URLRequest ready for sending.
     /// - Throws: An error if encoding the request fails.
     func formEncodedURLRequest(baseURL: URL) throws -> URLRequest {
-        let url = baseURL.appending(path: path).appending(queryItems: queryItems)
+        let url = constructURL(from: baseURL)
         var urlRequest = URLRequest(url: url)
         urlRequest.allHTTPHeaderFields = headers
         urlRequest.httpMethod = httpMethod.rawValue
