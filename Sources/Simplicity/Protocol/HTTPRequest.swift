@@ -38,11 +38,11 @@ public nonisolated protocol HTTPRequest: Sendable {
     /// The HTTP method (e.g., GET, POST, PUT, DELETE) for this request.
     var httpMethod: HTTPMethod { get }
     /// Additional HTTP headers to include in the request.
-    var headers: [String: String] { get }
+    var headers: [String: String] { get set }
     /// The URL query items to include in the request URL.
-    var queryItems: [URLQueryItem] { get }
+    var queryItems: [URLQueryItem] { get set }
     /// The body of the HTTP request, typed as `RequestBody`.
-    var httpBody: RequestBody { get }
+    var httpBody: RequestBody { get set }
 
     /// Decodes the HTTP response data into this request's `ResponseBody` type.
     ///
@@ -54,7 +54,7 @@ public nonisolated protocol HTTPRequest: Sendable {
 
 // MARK: Default implementation
 
-extension HTTPRequest where ResponseBody: Decodable {
+public extension HTTPRequest where ResponseBody: Decodable {
     /// Default implementation of `decodeResponseData(_:)`.
     /// This method decodes the response data from JSON into the `ResponseBody` type.
     /// Conformers can override this method for custom decoding behavior.
