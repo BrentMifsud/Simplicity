@@ -80,7 +80,8 @@ public extension HTTPRequest where ResponseBody: Decodable {
     /// This method decodes the response data from JSON into the `ResponseBody` type.
     /// Conformers can override this method for custom decoding behavior.
     func decodeResponseData(_ data: Data) throws -> ResponseBody {
-        let decoder = JSONDecoder()
+        var decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601Long
         return try decoder.decode(ResponseBody.self, from: data)
     }
 }
