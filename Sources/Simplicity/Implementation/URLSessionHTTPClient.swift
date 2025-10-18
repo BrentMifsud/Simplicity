@@ -108,6 +108,7 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
         let initialMiddlewareRequest: Middleware.Request = (
             httpMethod: request.httpMethod,
             baseURL: baseURL,
+            path: request.path,
             headers: request.headers,
             httpBody: requestBody
         )

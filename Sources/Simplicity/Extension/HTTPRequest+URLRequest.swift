@@ -24,26 +24,12 @@ public extension HTTPRequest {
     /// - Returns: A fully formed `URLRequest` ready for sending.
     /// - Throws: An error if encoding the request fails.
     func encodeURLRequest(baseURL: URL) throws -> URLRequest {
-        let url = constructURL(from: baseURL)
+        let url = requestURL(baseURL: baseURL)
         var urlRequest = URLRequest(url: url)
         urlRequest.allHTTPHeaderFields = headers
         urlRequest.httpMethod = httpMethod.rawValue
         urlRequest.httpBody = try encodeBody()
         return urlRequest
-    }
-
-    /// Builds the absolute URL by appending this request's `path` and `queryItems` to `baseURL`.
-    ///
-    /// - Parameter baseURL: The base URL to which the request-specific `path` and `queryItems` are applied.
-    /// - Returns: A `URL` representing the full endpoint for this request.
-    func constructURL(from baseURL: URL) -> URL {
-        var url = baseURL.appending(path: path)
-
-        if !queryItems.isEmpty {
-            url = url.appending(queryItems: queryItems)
-        }
-
-        return url
     }
 
     /// Encodes the request body to `Data` using `JSONEncoder` by default.

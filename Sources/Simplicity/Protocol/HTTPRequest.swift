@@ -77,6 +77,27 @@ public nonisolated protocol HTTPRequest: Sendable {
 
 // MARK: Default implementation
 
+public extension HTTPRequest {
+    /// Builds the absolute URL by appending this request's `path` and `queryItems` to `baseURL`.
+    ///
+    /// - Parameter baseURL: The base URL to which the request-specific `path` and `queryItems` are applied.
+    /// - Returns: A `URL` representing the full endpoint for this request.
+    func requestURL(baseURL: URL) -> URL {
+        var url = baseURL
+        guard !path.isEmpty else {
+            return url
+        }
+
+        url = url.appending(path: path)
+
+        guard !queryItems.isEmpty else {
+            return url
+        }
+
+        return url.appending(queryItems: queryItems)
+    }
+}
+
 public extension HTTPRequest where RequestBody == Never {
     var httpBody: Never {
         get { fatalError("\(type(of: self)) does not have a request body") }
@@ -101,3 +122,4 @@ public extension HTTPRequest where ResponseBody: Decodable {
         return try decoder.decode(ResponseBody.self, from: data)
     }
 }
+

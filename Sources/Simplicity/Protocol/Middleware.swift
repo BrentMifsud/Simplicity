@@ -89,7 +89,19 @@ public protocol Middleware: Sendable {
 }
 
 public extension Middleware {
-    typealias Request = (httpMethod: HTTPMethod, baseURL: URL, headers: [String: String], httpBody: Data?)
-    typealias Response = (statusCode: HTTPStatusCode, url: URL, headers: [String: String], httpBody: Data)
+    typealias Request = (
+        httpMethod: HTTPMethod,
+        baseURL: URL,
+        path: String,
+        headers: [String: String],
+        httpBody: Data?
+    )
+
+    typealias Response = (
+        statusCode: HTTPStatusCode,
+        url: URL,
+        headers: [String: String],
+        httpBody: Data
+    )
 }
 
