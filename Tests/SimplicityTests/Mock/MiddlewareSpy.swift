@@ -8,41 +8,42 @@
 import Foundation
 import Simplicity
 
-actor MiddlewareSpy<Req: HTTPRequest>: Middleware {
+actor MiddlewareSpy: Middleware {
     private(set) var callTime: Date?
-    private let mutation: ((Req, URL) -> (Req, URL))?
-    private let postResponseOperation: ((HTTPResponse<Req.ResponseBody>) -> Void)?
-    
+    private let mutation: ((Middleware.Request) -> (Middleware.Request))?
+    private let postResponseOperation: ((Middleware.Response) -> Void)?
+
     init(
-        mutation: ((Req, URL) -> (Req, URL))? = nil,
-        postResponseOperation: ((HTTPResponse<Req.ResponseBody>) -> Void)? = nil
+        mutation: ((Middleware.Request) -> (Middleware.Request))? = nil,
+        postResponseOperation: ((Middleware.Response) -> Void)? = nil
     ) {
         self.mutation = mutation
         self.postResponseOperation = postResponseOperation
     }
-    
-    func intercept<Request: HTTPRequest>(
-        request: Request,
-        baseURL: URL,
-        next: nonisolated(nonsending) @Sendable (Request, URL) async throws -> HTTPResponse<Request.ResponseBody>
-    ) async throws -> HTTPResponse<Request.ResponseBody> {
+
+    func intercept(
+        request: (Middleware.Request),
+        next: nonisolated(nonsending) @Sendable (Middleware.Request) async throws -> Middleware.Response
+    ) async throws -> (
+        statusCode: Simplicity.HTTPStatusCode,
+        url: URL,
+        headers: [String : String],
+        httpBody: Data
+    ) {
         callTime = Date()
-        
-        var requestVar = request
-        var baseURLVar = baseURL
-        
-        if let mutation = mutation {
-            let (newRequest, newBaseURL) = mutation(requestVar as! Req, baseURLVar)
-            requestVar = newRequest as! Request
-            baseURLVar = newBaseURL
+
+        var request = request
+
+        if let mutation {
+            request = mutation(request)
         }
-        
-        let response = try await next(requestVar, baseURLVar)
-        
+
+        let response = try await next(request)
+
         if let postResponseOperation = postResponseOperation {
-            postResponseOperation(response as! HTTPResponse<Req.ResponseBody>)
+            postResponseOperation(response)
         }
-        
+
         return response
     }
 }

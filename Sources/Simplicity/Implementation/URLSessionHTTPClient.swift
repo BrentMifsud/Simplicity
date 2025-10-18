@@ -44,58 +44,86 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
     ) async throws -> HTTPResponse<Request.ResponseBody> {
         try Task.checkCancellation()
 
-        var next: @Sendable (Request, URL) async throws -> HTTPResponse<Request.ResponseBody> = { [urlSession] httpRequest, baseURL in
-            var urlRequest = try httpRequest.encodeURLRequest(baseURL: baseURL)
+        var next: @Sendable (Middleware.Request) async throws -> Middleware.Response = { [urlSession] middlewareRequest -> Middleware.Response in
+            // Build a URLRequest from the original typed request, but apply middleware mutations
+            var urlRequest = try request.encodeURLRequest(baseURL: middlewareRequest.baseURL)
+            urlRequest.httpMethod = middlewareRequest.httpMethod.rawValue
+            // Apply/override headers from middleware
+            for (key, value) in middlewareRequest.headers {
+                urlRequest.setValue(value, forHTTPHeaderField: key)
+            }
+            // Apply/override body from middleware
+            urlRequest.httpBody = middlewareRequest.httpBody
+
+            // Apply client-provided cache policy and timeout
             urlRequest.cachePolicy = cachePolicy.urlRequestCachePolicy
             urlRequest.timeoutInterval = TimeInterval(timeout.components.seconds)
+
             try Task.checkCancellation()
             let (data, response) = try await urlSession.data(for: urlRequest)
             try Task.checkCancellation()
-            
+
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw URLError(.unknown, userInfo: ["reason" : "Response was not an HTTP response"])
             }
-            
+
             guard let statusCode = HTTPStatusCode(rawValue: httpResponse.statusCode) else {
                 throw URLError(.badServerResponse, userInfo: ["reason": "Invalid HTTP status code: \(httpResponse.statusCode)"])
             }
-            
-            let body = try request.decodeResponseData(data)
 
             guard let url = httpResponse.url ?? urlRequest.url else {
                 throw URLError(.unknown, userInfo: ["reason": "URL is missing from httpResponse or urlRequest"])
             }
 
-            return HTTPResponse<Request.ResponseBody>(
-                statusCode: statusCode,
-                headers: httpResponse.allHeaderFields
-                    .reduce(into: [String: String]()) { result, pair in
-                        if let key = pair.key as? String,
-                           let value = pair.value as? String {
-                            result[key] = value
-                        }
-                    },
-                url: url,
-                httpBody: body,
-                rawData: data
-            )
+            // Convert header fields from [AnyHashable: Any] to [String: String]
+            let headers: [String: String] = httpResponse.allHeaderFields.reduce(into: [:]) { dict, pair in
+                if let key = pair.key as? String,
+                   let value = pair.value as? String {
+                    dict[key] = value
+                }
+            }
+
+            return (statusCode: statusCode, url: url, headers: headers, httpBody: data)
         }
         
         for middleware in middlewares.reversed() {
             let tmp = next
-            next = { urlRequest, baseURL in
+            next = { request in
                 try Task.checkCancellation()
                 return try await middleware.intercept(
-                    request: urlRequest,
-                    baseURL: baseURL,
+                    request: request,
                     next: tmp
                 )
             }
         }
-        
-        let response = try await next(request, baseURL)
+
+        let requestBody: Data? = if Request.RequestBody.self == Never.self || Request.RequestBody.self == Never?.self {
+            .none
+        } else {
+            try request.encodeBody()
+        }
+
         try Task.checkCancellation()
-        return response
+
+        let initialMiddlewareRequest: Middleware.Request = (
+            httpMethod: request.httpMethod,
+            baseURL: baseURL,
+            headers: request.headers,
+            httpBody: requestBody
+        )
+
+        let response = try await next(initialMiddlewareRequest)
+
+        try Task.checkCancellation()
+
+        let responseBody = try request.decodeResponseData(response.httpBody)
+
+        return HTTPResponse<Request.ResponseBody>(
+            statusCode: response.statusCode,
+            url: response.url,
+            headers: response.headers,
+            httpBody: responseBody
+        )
     }
 }
 

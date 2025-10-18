@@ -16,9 +16,9 @@ public import Foundation
 /// Composition and ordering:
 /// - Middleware are executed in the order they are registered. Earlier middleware wrap later ones.
 ///   Place broad concerns (e.g., tracing) earlier and specific concerns (e.g., auth) closer to the transport.
-/// - Each middleware receives a strongly‑typed `request`, the current `baseURL`, and a `next` closure
+/// - Each middleware receives a `Middleware.Request` tuple (method, baseURL, headers, httpBody) and a `next` closure
 ///   representing the remainder of the chain.
-/// - You may short‑circuit by returning a synthesized `HTTPResponse` without calling `next` (e.g., cached data),
+/// - You may short‑circuit by returning a synthesized `Middleware.Response` without calling `next` (e.g., cached data),
 ///   or call `next` one or multiple times (e.g., retries, shadow traffic) before returning.
 ///
 /// Concurrency and safety:
@@ -35,47 +35,46 @@ public import Foundation
 /// - If implementing retries, ensure the operation is idempotent or your strategy accounts for side effects.
 ///
 /// Request/response transformation:
-/// - You may validate and mutate the outgoing request (e.g., add headers, sign requests, rewrite paths/base URL).
-/// - You can inspect and transform the incoming `HTTPResponse` before returning it (e.g., normalize headers,
+/// - You may validate and mutate the outgoing request tuple (e.g., add headers, sign requests, rewrite paths/base URL).
+/// - You can inspect and transform the incoming `Middleware.Response` tuple before returning it (e.g., normalize headers,
 ///   decode/unwrap envelopes, attach metadata).
-/// - For typed access, prefer `HTTPResponse.body`; fall back to `rawData` for custom parsing.
 ///
 /// Example (conceptual):
 /// ```swift
 /// struct AuthMiddleware: Middleware {
-///     func intercept<Request: HTTPRequest>(
-///         request: Request,
-///         baseURL: URL,
-///         next: nonisolated(nonsending) @Sendable (Request, URL) async throws -> HTTPResponse<Request.ResponseBody>
-///     ) async throws -> HTTPResponse<Request.ResponseBody> {
-///         var request = request
-///         request.headers["Authorization"] = "Bearer \(token)"
+///     let tokenProvider: () -> String
+///
+///     func intercept(
+///         request: Middleware.Request,
+///         next: nonisolated(nonsending) @Sendable (Middleware.Request) async throws -> Middleware.Response
+///     ) async throws -> Middleware.Response {
+///         var req = request
+///         // Inject/override authorization header
+///         req.headers["Authorization"] = "Bearer \(tokenProvider())"
 ///
 ///         // Optional: validate cancellation before work that cannot be undone
 ///         try Task.checkCancellation()
 ///
-///         let response = try await next(request, baseURL)
+///         // Continue the chain with the possibly modified request
+///         let response = try await next(req)
 ///         return response
 ///     }
 /// }
 /// ```
 ///
-/// - Note: Do not retain or escape the `next` closure beyond the scope of `intercept`.
-/// - See also: `HTTPRequest`, `HTTPResponse`.
-///
-/// Intercepts an outgoing `HTTPRequest`, optionally mutates it, and decides whether to forward it
+/// Intercepts an outgoing request, optionally mutates it, and decides whether to forward it
 /// down the middleware chain by calling `next`. You may also inspect and transform the resulting
-/// `HTTPResponse` before returning it.
+/// `Middleware.Response` before returning it.
 ///
 /// - Parameters:
-///   - request: The strongly‑typed request to send. You may read, validate, or replace it before forwarding.
-///   - baseURL: The current base URL that will be combined with the request’s path. You may pass a different
-///     value to `next` to rewrite routing (e.g., for multi‑region failover).
+///   - request: The current request tuple `(httpMethod: HTTPMethod, baseURL: URL, headers: [String: String], httpBody: Data?)`.
+///     You may read, validate, or replace any of its fields before forwarding.
 ///   - next: A `nonisolated(nonsending) @Sendable` async function representing the remainder of the chain
-///     (including the transport). Call `next(modifiedRequest, modifiedBaseURL)` to continue.
-///     You may call it once, multiple times (e.g., retries), or not at all (short‑circuit). Do not store or escape this closure.
+///     (including the transport). Call `next(modifiedRequest)` to continue. You may call it once, multiple
+///     times (e.g., retries), or not at all (short‑circuit). Do not store or escape this closure.
 ///
-/// - Returns: An `HTTPResponse<Request.ResponseBody>` produced by the transport or synthesized by the middleware.
+/// - Returns: A `Middleware.Response` tuple `(statusCode: HTTPStatusCode, url: URL, headers: [String: String], httpBody: Data)`
+///   produced by the transport or synthesized by the middleware.
 ///
 /// - Throws: Any error thrown by downstream middleware or the transport, or errors you throw yourself
 ///   (e.g., validation failures, cancellation, retry exhaustion).
@@ -83,12 +82,14 @@ public import Foundation
 /// - Important: If you implement retries, ensure that the retried operation is safe (idempotent) or that
 ///   your strategy accounts for side effects. Consider honoring `Task.isCancelled` before retrying and between attempts.
 public protocol Middleware: Sendable {
-    func intercept<Request: HTTPRequest>(
-        request: Request,
-        baseURL: URL,
-        next: nonisolated(nonsending) @Sendable (
-            _ request: Request,
-            _ baseURL: URL
-        ) async throws -> HTTPResponse<Request.ResponseBody>
-    ) async throws -> HTTPResponse<Request.ResponseBody>
+    func intercept(
+        request: Middleware.Request,
+        next: nonisolated(nonsending) @Sendable (Middleware.Request) async throws -> Middleware.Response
+    ) async throws -> Middleware.Response
 }
+
+public extension Middleware {
+    typealias Request = (httpMethod: HTTPMethod, baseURL: URL, headers: [String: String], httpBody: Data?)
+    typealias Response = (statusCode: HTTPStatusCode, url: URL, headers: [String: String], httpBody: Data)
+}
+

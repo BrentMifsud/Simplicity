@@ -38,11 +38,11 @@ public nonisolated protocol HTTPRequest: Sendable {
     /// The HTTP method (e.g., GET, POST, PUT, DELETE) for this request.
     var httpMethod: HTTPMethod { get }
     /// Additional HTTP headers to include in the request.
-    var headers: [String: String] { get set }
+    var headers: [String: String] { get }
     /// The URL query items to include in the request URL.
-    var queryItems: [URLQueryItem] { get set }
+    var queryItems: [URLQueryItem] { get }
     /// The body of the HTTP request, typed as `RequestBody`.
-    var httpBody: RequestBody { get set }
+    var httpBody: RequestBody { get }
 
     func encodeBody() throws -> Data?
 

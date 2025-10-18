@@ -16,7 +16,6 @@ struct MiddlewareTests {
         var httpMethod: Simplicity.HTTPMethod = .get
         var headers: [String : String] = [:]
         var queryItems: [URLQueryItem] = []
-        var httpBody: Never?
 
         func encodeURLRequest(baseURL: URL) throws -> URLRequest {
             let url = baseURL.appending(path: path).appending(queryItems: queryItems)
@@ -34,8 +33,8 @@ struct MiddlewareTests {
     @available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, visionOS 1.0, *)
     @Test("Middleware call order is correct")
     func middlewareCallOrder() async throws {
-        let middleware1 = MiddlewareSpy<MockRequest>()
-        let middleware2 = MiddlewareSpy<MockRequest>()
+        let middleware1 = MiddlewareSpy()
+        let middleware2 = MiddlewareSpy()
         
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
@@ -64,10 +63,10 @@ struct MiddlewareTests {
     @available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, visionOS 1.0, *)
     @Test("Middleware does correctly mutate value")
     func middlewareMutation() async throws {
-        let middleware = MiddlewareSpy<MockRequest> { request, baseURL in
+        let middleware = MiddlewareSpy { request in
             var request = request
             request.headers = ["accepts": "application/json"]
-            return (request, baseURL)
+            return request
         }
         
         let config = URLSessionConfiguration.ephemeral
@@ -95,10 +94,16 @@ struct MiddlewareTests {
     @available(iOS 17.0, macOS 14.0, tvOS 17.0, watchOS 10.0, visionOS 1.0, *)
     @Test("Post middleware is called after the request completion")
     func postMiddlewareCallOrder() async throws {
-        let middleware = MiddlewareSpy<MockRequest>(
+        let middleware = MiddlewareSpy(
             mutation: nil,
             postResponseOperation: { response in
-                #expect(response.httpBody == "Test")
+                do {
+                    let responseBody = try #require(String(data: response.httpBody, encoding: .utf8))
+                    #expect(responseBody == "\"Test\"")
+                } catch {
+                    Issue.record(error, "Response body was invalid")
+                }
+
                 #expect(response.statusCode == .ok)
             }
         )

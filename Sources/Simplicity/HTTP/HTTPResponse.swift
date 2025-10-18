@@ -75,22 +75,19 @@ public import Foundation
 ///   - rawData: The raw response bytes, if captured by the transport.
 public nonisolated struct HTTPResponse<ResponseBody: Decodable & Sendable>: Sendable {
     public let statusCode: HTTPStatusCode
-    public let headers: [String: String]
     public let url: URL
+    public let headers: [String: String]
     public let httpBody: ResponseBody
-    public let rawData: Data?
 
     public init(
         statusCode: HTTPStatusCode,
-        headers: [String: String],
         url: URL,
+        headers: [String: String],
         httpBody: ResponseBody,
-        rawData: Data
     ) {
         self.statusCode = statusCode
-        self.headers = headers
         self.url = url
+        self.headers = headers
         self.httpBody = httpBody
-        self.rawData = rawData
     }
 }

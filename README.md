@@ -46,45 +46,52 @@ print(response.token)
 
 ## Middleware
 
-Setting up middleware is also quite simple
+Setting up middleware is also quite simple. Middleware receive and return lightweight tuples instead of generic request/response types. The `request` you get is:
+
+- `httpMethod: HTTPMethod`
+- `baseURL: URL`
+- `headers: [String: String]`
+- `httpBody: Data?`
+
+You can mutate any of these fields before calling `next`.
 
 ```swift
 struct LoggingMiddleware: Middleware {
     private let logger: Logger
-    
+
     init(logger: Logger) {
         self.logger = logger
     }
-    
-    func intercept<Request: HTTPRequest>(
-        request: Request,
-        baseURL: URL,
-        next: nonisolated(nonsending) @Sendable (
-            _ request: Request,
-            _ baseURL: URL
-        ) async throws -> HTTPResponse<Request.ResponseBody>
-    ) async throws -> HTTPResponse<Request.ResponseBody> {
-        let urlRequest = try request.encodeURLRequest(baseURL: baseURL)
-    
-        // log request information
+
+    func intercept(
+        request: Middleware.Request,
+        next: nonisolated(nonsending) @Sendable (Middleware.Request) async throws -> Middleware.Response
+    ) async throws -> Middleware.Response {
+        // Log request information
+        let bodyPreview = request.httpBody.flatMap { String(data: $0, encoding: .utf8) } ?? "<none>"
         logger.info("""
         REQUEST:
-        \(request.httpMethod) \(baseURL.appending(path: request.path).appending(queryItems: request.queryItems))
-        Headers: \(request.allHTTPHeaderFields)
-        Query: \(request.query)
-        Request Body: \(String(data: request.httpBody!, encoding: .utf8)!)
+        \(request.httpMethod) \(request.baseURL)
+        Headers: \(request.headers)
+        Body: \(bodyPreview)
         """)
-        
-        // continue on to execute the request
-        let response = try await next(request, baseURL, operationID)
-        
-        // log response
+
+        try Task.checkCancellation()
+
+        // Continue on to execute the request (or further middleware)
+        let response = try await next(request)
+
+        // Log response
+        let responseBodyPreview = String(decoding: response.httpBody, as: UTF8.self)
         logger.info("""
         RESPONSE:
         HTTP Status: \(response.statusCode)
+        URL: \(response.url.absoluteString)
         Headers: \(response.headers)
-        Response Body: \(String(data: data, encoding: .utf8)!)
+        Body: \(responseBodyPreview)
         """)
+
+        return response
     }
 }
 ```
