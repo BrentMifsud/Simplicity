@@ -7,6 +7,12 @@
 
 public import Foundation
 
+// MARK: - URLRequest Encoding helpers
+/// Default implementations that turn an `HTTPRequest` into a `URLRequest`.
+///
+/// Conforming types may override specific pieces (for example,
+/// `encodeURLRequest(baseURL:)` or `encodeBody()`) to customize behavior,
+/// while continuing to rely on shared setup provided here.
 public extension HTTPRequest {
     /// Encodes this request into a `URLRequest` using JSON encoding by default.
     ///
@@ -14,25 +20,22 @@ public extension HTTPRequest {
     /// (e.g., `application/x-www-form-urlencoded`, multipart, or custom formats), or to apply
     /// additional per-request configuration.
     ///
-    /// For convenience, default helpers are provided:
-    /// - `jsonEncodedURLRequest(baseURL:)` — builds a request with a JSON-encoded body and sets
-    ///   a `Content-Type: application/json` header when not already present.
-    /// - `formEncodedURLRequest(baseURL:)` — builds a request with an
-    ///   `application/x-www-form-urlencoded` body and sets the corresponding content type when
-    ///   not already present.
-    ///
-    /// You can call either helper from your override to opt into the desired encoding without
-    /// reimplementing common setup.
-    ///
     /// - Parameter baseURL: The base URL to be combined with the request's path and query items.
     /// - Returns: A fully formed `URLRequest` ready for sending.
     /// - Throws: An error if encoding the request fails.
     func encodeURLRequest(baseURL: URL) throws -> URLRequest {
-        try jsonEncodedURLRequest(baseURL: baseURL)
+        let url = constructURL(from: baseURL)
+        var urlRequest = URLRequest(url: url)
+        urlRequest.allHTTPHeaderFields = headers
+        urlRequest.httpMethod = httpMethod.rawValue
+        urlRequest.httpBody = try encodeBody()
+        return urlRequest
     }
-}
 
-public extension HTTPRequest {
+    /// Builds the absolute URL by appending this request's `path` and `queryItems` to `baseURL`.
+    ///
+    /// - Parameter baseURL: The base URL to which the request-specific `path` and `queryItems` are applied.
+    /// - Returns: A `URL` representing the full endpoint for this request.
     func constructURL(from baseURL: URL) -> URL {
         var url = baseURL.appending(path: path)
 
@@ -42,62 +45,25 @@ public extension HTTPRequest {
 
         return url
     }
-}
 
-public extension HTTPRequest where RequestBody: Encodable & Sendable {
-    /// Encodes this request as a URLRequest, using the provided base URL.
+    /// Encodes the request body to `Data` using `JSONEncoder` by default.
     ///
-    /// - Parameter baseURL: The base URL to be combined with the request's path and query items.
-    /// - Returns: A fully formed URLRequest ready for sending.
-    /// - Throws: An error if encoding the request fails.
-    func jsonEncodedURLRequest(baseURL: URL) throws -> URLRequest {
-        let url = constructURL(from: baseURL)
-        var urlRequest = URLRequest(url: url)
-        urlRequest.allHTTPHeaderFields = headers
-        urlRequest.httpMethod = httpMethod.rawValue
-
-        // Ensure the correct Content-Type header is set if not already provided.
-        if urlRequest.value(forHTTPHeaderField: "Content-Type") == nil {
-            urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        }
-        // Ensure we always accept JSON responses by default.
-        if urlRequest.value(forHTTPHeaderField: "Accept") == nil {
-            urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
-        }
-
-        guard RequestBody.self != Never.self && RequestBody.self != Never?.self else {
-            return urlRequest
-        }
-
-        urlRequest.httpBody = try JSONEncoder().encode(httpBody)
-        return urlRequest
-    }
-    
-    /// Encodes this request as a URLRequest with an application/x-www-form-urlencoded body.
+    /// If `RequestBody` is `Never` or `Never?`, this method returns `nil`, indicating that
+    /// the request has no body (e.g., for GET or DELETE requests).
     ///
-    /// - Parameter baseURL: The base URL to be combined with the request's path and query items.
-    /// - Returns: A fully formed URLRequest ready for sending.
-    /// - Throws: An error if encoding the request fails.
-    func formEncodedURLRequest(baseURL: URL) throws -> URLRequest {
-        let url = constructURL(from: baseURL)
-        var urlRequest = URLRequest(url: url)
-        urlRequest.allHTTPHeaderFields = headers
-        urlRequest.httpMethod = httpMethod.rawValue
-
-        // Ensure the correct Content-Type header is set if not already provided.
-        if urlRequest.value(forHTTPHeaderField: "Content-Type") == nil {
-            urlRequest.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        }
-        // Ensure we always accept JSON responses by default.
-        if urlRequest.value(forHTTPHeaderField: "Accept") == nil {
-            urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
+    /// Conforming types may override this to provide an alternate encoding strategy, such as
+    /// form encoding or multipart bodies, or to adjust the encoder configuration.
+    ///
+    /// - Returns: The encoded body data, or `nil` if no body is present.
+    /// - Throws: Any error thrown by the encoder while encoding `httpBody`.
+    func encodeBody() throws -> Data? {
+        if RequestBody.self == Never.self {
+            return nil
+        } else if RequestBody.self == Never?.self {
+            return nil
         }
 
-        guard RequestBody.self != Never.self && RequestBody.self != Never?.self else {
-            return urlRequest
-        }
-
-        urlRequest.httpBody = try JSONEncoder().encode(httpBody)
-        return urlRequest
+        return try JSONEncoder().encode(httpBody)
     }
 }
+

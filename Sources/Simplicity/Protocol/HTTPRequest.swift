@@ -27,10 +27,10 @@ public import Foundation
 /// ```
 public nonisolated protocol HTTPRequest: Sendable {
     /// The type of the request body, which must be `Encodable` and `Sendable`.
-    associatedtype RequestBody: Encodable & Sendable
+    associatedtype RequestBody: Encodable & Sendable = Never
     /// The type of the response body, which must be `Decodable` and `Sendable`.
-    associatedtype ResponseBody: Decodable & Sendable
-    
+    associatedtype ResponseBody: Decodable & Sendable = Never
+
     /// A unique identifier for the operation or endpoint.
     static var operationID: String { get }
     /// The path component of the HTTP request URL (relative to the base URL).
@@ -43,6 +43,8 @@ public nonisolated protocol HTTPRequest: Sendable {
     var queryItems: [URLQueryItem] { get set }
     /// The body of the HTTP request, typed as `RequestBody`.
     var httpBody: RequestBody { get set }
+
+    func encodeBody() throws -> Data?
 
     /// Encodes this request into a `URLRequest` using JSON encoding by default.
     ///
@@ -75,12 +77,26 @@ public nonisolated protocol HTTPRequest: Sendable {
 
 // MARK: Default implementation
 
+public extension HTTPRequest where RequestBody == Never {
+    var httpBody: Never {
+        get { fatalError("\(type(of: self)) does not have a request body") }
+        set {}
+    }
+}
+
+public extension HTTPRequest where RequestBody == Never? {
+    var httpBody: Never? {
+        get { nil }
+        set { fatalError("\(type(of: self)) does not have a request body") }
+    }
+}
+
 public extension HTTPRequest where ResponseBody: Decodable {
     /// Default implementation of `decodeResponseData(_:)`.
     /// This method decodes the response data from JSON into the `ResponseBody` type.
     /// Conformers can override this method for custom decoding behavior.
     func decodeResponseData(_ data: Data) throws -> ResponseBody {
-        var decoder = JSONDecoder()
+        let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601Long
         return try decoder.decode(ResponseBody.self, from: data)
     }
