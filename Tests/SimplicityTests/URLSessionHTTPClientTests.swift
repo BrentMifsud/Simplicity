@@ -165,6 +165,148 @@ struct URLSessionHTTPClientTests {
         // Assert
         #expect(err == expected)
     }
+
+    @Test
+    func testMiddlewareNonClientError_isWrappedAsMiddlewareAndNotNested() async throws {
+        // Arrange
+        enum DummyError: Error, Equatable { case boom }
+        let throwingMiddleware = MiddlewareSpy(thrownError: DummyError.boom)
+        let client = makeClient(baseURL: baseURL, middlewares: [throwingMiddleware])
+
+        // Act
+        do {
+            _ = try await client.send(request: GetSuccessRequest())
+            Issue.record("Expected to throw, but succeeded")
+        } catch {
+            // Assert: should be wrapped as .middleware with underlying DummyError
+            switch error {
+            case .middleware(let mw, let underlyingError):
+                #expect((mw as? MiddlewareSpy) === throwingMiddleware)
+                #expect((underlyingError as? DummyError) == .boom)
+                assertNoNestedClientError(error)
+            default:
+                Issue.record("Expected ClientError.middleware, got: \(error)")
+            }
+        }
+    }
+
+    @Test
+    func testMiddlewareClientError_isNotWrapped() async throws {
+        // Arrange
+        let middleware = MiddlewareSpy(thrownError: ClientError.invalidResponse("forced"))
+        let client = makeClient(baseURL: baseURL, middlewares: [middleware])
+
+        // Act
+        do {
+            _ = try await client.send(request: GetSuccessRequest())
+            Issue.record("Expected to throw, but succeeded")
+        } catch {
+            // Assert: should be the exact same ClientError, not wrapped
+            switch error {
+            case .invalidResponse(let message):
+                #expect(message == "forced")
+                assertNoNestedClientError(error)
+            default:
+                Issue.record("Expected ClientError.invalidResponse, got: \(error)")
+            }
+        }
+    }
+
+    @Test
+    func testURLSessionURLError_isWrappedAsTransport() async throws {
+        // Arrange
+        let token = UUID().uuidString
+        defer { MockURLProtocol.removeHandler(forToken: token) }
+        let tokenMiddleware = MiddlewareSpy { req in
+            var req = req
+            var headers = req.headers
+            headers["X-Mock-Token"] = token
+            req.headers = headers
+            return req
+        }
+        let client = makeClient(baseURL: baseURL, middlewares: [tokenMiddleware])
+        MockURLProtocol.setHandler({ _ in
+            throw URLError(.timedOut)
+        }, forToken: token)
+
+        // Act
+        do {
+            _ = try await client.send(request: GetSuccessRequest())
+            Issue.record("Expected to throw, but succeeded")
+        } catch {
+            // Assert
+            switch error {
+            case .transport(let urlError):
+                #expect(urlError.code == .timedOut)
+                assertNoNestedClientError(error)
+            default:
+                Issue.record("Expected ClientError.transport, got: \(error)")
+            }
+        }
+    }
+
+    @Test
+    func testInvalidStatusCode_isInvalidResponse() async throws {
+        // Arrange
+        let token = UUID().uuidString
+        defer { MockURLProtocol.removeHandler(forToken: token) }
+        let tokenMiddleware = MiddlewareSpy { req in
+            var req = req
+            var headers = req.headers
+            headers["X-Mock-Token"] = token
+            req.headers = headers
+            return req
+        }
+        let client = makeClient(baseURL: baseURL, middlewares: [tokenMiddleware])
+        MockURLProtocol.setHandler({ request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 999, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }, forToken: token)
+
+        // Act
+        do {
+            _ = try await client.send(request: GetSuccessRequest())
+            Issue.record("Expected to throw, but succeeded")
+        } catch {
+            // Assert
+            if case let .invalidResponse(message) = error {
+                #expect(message.contains("Invalid HTTP status code"))
+            } else {
+                Issue.record(error, "Expected an invalidResponse error")
+            }
+            assertNoNestedClientError(error)
+        }
+    }
+
+    // MARK: - Assertions
+    private func assertNoNestedClientError(
+        _ error: ClientError,
+        sourceLocation: SourceLocation = SourceLocation(
+            fileID: #fileID,
+            filePath: #filePath,
+            line: #line,
+            column: #column
+        )
+    ) {
+        switch error {
+        case .middleware(_, let underlying):
+            #expect(!(underlying is ClientError), "ClientError.middleware should not wrap a ClientError")
+        case .encodingError(let underlying):
+            #expect(
+                !(underlying is ClientError),
+                "ClientError.encodingError should not wrap a ClientError",
+                sourceLocation: sourceLocation
+            )
+        case .unknown(_, let underlying):
+            #expect(
+                !(underlying is ClientError),
+                "ClientError.unknown should not wrap a ClientError",
+                sourceLocation: sourceLocation
+            )
+        default:
+            break
+        }
+    }
 }
 
 // MARK: - Helpers
@@ -295,3 +437,4 @@ private struct SuccessOnlyRequest: HTTPRequest {
         fatalError("should not decode failure for SuccessOnlyRequest")
     }
 }
+

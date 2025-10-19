@@ -56,69 +56,40 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
         request: Request,
         cachePolicy: CachePolicy = .useProtocolCachePolicy,
         timeout: Duration = .seconds(30)
-    ) async throws -> HTTPResponse<Request.SuccessResponseBody, Request.FailureResponseBody> {
-        try Task.checkCancellation()
+    ) async throws(ClientError) -> HTTPResponse<Request.SuccessResponseBody, Request.FailureResponseBody> {
+        // If the task was cancelled immediately, exit early.
+        if Task.isCancelled { throw ClientError.cancelled }
 
-        var next: @Sendable (Middleware.Request) async throws -> Middleware.Response = { [urlSession] middlewareRequest -> Middleware.Response in
-            // Build a URLRequest from the original typed request, but apply middleware mutations
-            var urlRequest = try request.encodeURLRequest(baseURL: middlewareRequest.baseURL)
-            urlRequest.httpMethod = middlewareRequest.httpMethod.rawValue
-            // Apply/override headers from middleware
-            for (key, value) in middlewareRequest.headers {
-                urlRequest.setValue(value, forHTTPHeaderField: key)
-            }
-            // Apply/override body from middleware
-            urlRequest.httpBody = middlewareRequest.httpBody
+        // create URLRequest task to be executed
+        var next = executeURLRequest(for: request, cachePolicy: cachePolicy, timeout: timeout)
 
-            // Apply client-provided cache policy and timeout
-            urlRequest.cachePolicy = cachePolicy.urlRequestCachePolicy
-            urlRequest.timeoutInterval = TimeInterval(timeout.components.seconds)
-
-            try Task.checkCancellation()
-            let (data, response) = try await urlSession.data(for: urlRequest)
-            try Task.checkCancellation()
-
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw URLError(.unknown, userInfo: ["reason" : "Response was not an HTTP response"])
-            }
-
-            guard let statusCode = HTTPStatusCode(rawValue: httpResponse.statusCode) else {
-                throw URLError(.badServerResponse, userInfo: ["reason": "Invalid HTTP status code: \(httpResponse.statusCode)"])
-            }
-
-            guard let url = httpResponse.url ?? urlRequest.url else {
-                throw URLError(.unknown, userInfo: ["reason": "URL is missing from httpResponse or urlRequest"])
-            }
-
-            // Convert header fields from [AnyHashable: Any] to [String: String]
-            let headers: [String: String] = httpResponse.allHeaderFields.reduce(into: [:]) { dict, pair in
-                if let key = pair.key as? String,
-                   let value = pair.value as? String {
-                    dict[key] = value
-                }
-            }
-
-            return (statusCode: statusCode, url: url, headers: headers, httpBody: data)
-        }
-        
         for middleware in middlewares.reversed() {
             let tmp = next
-            next = { request in
-                try Task.checkCancellation()
-                return try await middleware.intercept(
-                    request: request,
-                    next: tmp
-                )
+            next = { middlewareRequest in
+                do {
+                    if Task.isCancelled { throw ClientError.cancelled }
+                    return try await middleware.intercept(
+                        request: middlewareRequest,
+                        next: tmp
+                    )
+                } catch let error as ClientError {
+                    throw error
+                } catch {
+                    throw ClientError.middleware(middleware: middleware, underlyingError: error)
+                }
             }
         }
 
-        let requestBody: Data? = if Request.RequestBody.self == Never.self || Request.RequestBody.self == Never?.self {
-            .none
+        let requestBody: Data?
+        if Request.RequestBody.self == Never.self || Request.RequestBody.self == Never?.self {
+            requestBody = nil
         } else {
-            try request.encodeHTTPBody()
+            do {
+                requestBody = try request.encodeHTTPBody()
+            } catch {
+                throw ClientError.encodingError(underlyingError: error)
+            }
         }
-
-        try Task.checkCancellation()
 
         let initialMiddlewareRequest: Middleware.Request = (
             operationID: type(of: request).operationID,
@@ -129,17 +100,94 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
             httpBody: requestBody
         )
 
-        let response = try await next(initialMiddlewareRequest)
+        do {
+            if Task.isCancelled { throw ClientError.cancelled }
+            let response = try await next(initialMiddlewareRequest)
+            return makeResponse(
+                statusCode: response.statusCode,
+                url: response.url,
+                headers: response.headers,
+                httpBody: response.httpBody,
+                for: request
+            )
+        } catch let error as ClientError {
+            throw error
+        } catch {
+            throw ClientError.unknown(client: self, underlyingError: error)
+        }
+    }
 
-        try Task.checkCancellation()
+    private func executeURLRequest(
+        for request: any HTTPRequest,
+        cachePolicy: CachePolicy,
+        timeout: Duration
+    ) -> @Sendable (Middleware.Request) async throws -> Middleware.Response {
+        { [urlSession] middlewareRequest async throws(ClientError) -> Middleware.Response in
+            // Since middleware could potientially modify the request, we need to recreate it.
+            var urlRequest: URLRequest
+            do {
+                urlRequest = try request.encodeURLRequest(baseURL: middlewareRequest.baseURL)
+                urlRequest.httpMethod = middlewareRequest.httpMethod.rawValue
+                // Apply/override headers from middleware
+                for (key, value) in middlewareRequest.headers {
+                    urlRequest.setValue(value, forHTTPHeaderField: key)
+                }
+                // Apply/override body from middleware
+                urlRequest.httpBody = middlewareRequest.httpBody
 
-        return makeResponse(
-            statusCode: response.statusCode,
-            url: response.url,
-            headers: response.headers,
-            httpBody: response.httpBody,
-            for: request
-        )
+                // Apply client-provided cache policy and timeout
+                urlRequest.cachePolicy = cachePolicy.urlRequestCachePolicy
+                urlRequest.timeoutInterval = TimeInterval(timeout.components.seconds)
+            } catch {
+                throw ClientError.encodingError(underlyingError: error)
+            }
+
+            do {
+                try Task.checkCancellation()
+                let (data, response) = try await urlSession.data(for: urlRequest)
+                try Task.checkCancellation()
+
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw ClientError.invalidResponse("Response was not an HTTP response")
+                }
+
+                guard let statusCode = HTTPStatusCode(rawValue: httpResponse.statusCode) else {
+                    throw ClientError.invalidResponse("Invalid HTTP status code: \(httpResponse.statusCode)")
+                }
+
+                guard let url = httpResponse.url ?? urlRequest.url else {
+                    throw ClientError.invalidResponse("URL is missing from httpResponse or urlRequest")
+                }
+
+                // Convert header fields from [AnyHashable: Any] to [String: String]
+                let headers: [String: String] = httpResponse.allHeaderFields.reduce(into: [:]) { dict, pair in
+                    if let key = pair.key as? String,
+                       let value = pair.value as? String {
+                        dict[key] = value
+                    }
+                }
+
+                return (statusCode: statusCode, url: url, headers: headers, httpBody: data)
+            } catch is CancellationError {
+                throw ClientError.cancelled
+            } catch let error as URLError where error.code == .cancelled {
+                // URLSession task cancellation
+                throw ClientError.cancelled
+            } catch let error as URLError {
+                throw ClientError.transport(error)
+            } catch let error as NSError where error.domain == NSURLErrorDomain {
+                let urlError = URLError(URLError.Code(rawValue: error.code), userInfo: error.userInfo)
+                if urlError.code == .cancelled {
+                    throw ClientError.cancelled
+                } else {
+                    throw ClientError.transport(urlError)
+                }
+            } catch let error as ClientError {
+                throw error
+            } catch {
+                throw ClientError.unknown(client: self, underlyingError: error)
+            }
+        }
     }
 }
 

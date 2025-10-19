@@ -10,13 +10,16 @@ import Simplicity
 
 actor MiddlewareSpy: Middleware {
     private(set) var callTime: Date?
+    private let thrownError: (any Error)?
     private let mutation: ((Middleware.Request) -> (Middleware.Request))?
     private let postResponseOperation: ((Middleware.Response) -> Void)?
 
     init(
+        thrownError: (any Error)? = nil,
         mutation: ((Middleware.Request) -> (Middleware.Request))? = nil,
         postResponseOperation: ((Middleware.Response) -> Void)? = nil
     ) {
+        self.thrownError = thrownError
         self.mutation = mutation
         self.postResponseOperation = postResponseOperation
     }
@@ -31,6 +34,10 @@ actor MiddlewareSpy: Middleware {
         httpBody: Data
     ) {
         callTime = Date()
+
+        if let thrownError {
+            throw thrownError
+        }
 
         var request = request
 

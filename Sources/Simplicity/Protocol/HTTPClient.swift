@@ -83,5 +83,5 @@ public nonisolated protocol HTTPClient: Sendable {
         request: Request,
         cachePolicy: CachePolicy,
         timeout: Duration
-    ) async throws -> HTTPResponse<Request.SuccessResponseBody, Request.FailureResponseBody>
+    ) async throws(ClientError) -> HTTPResponse<Request.SuccessResponseBody, Request.FailureResponseBody>
 }
