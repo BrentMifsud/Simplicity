@@ -334,7 +334,7 @@ private struct GetSuccessRequest: HTTPRequest {
     var headers: [String: String] { [:] }
     var queryItems: [URLQueryItem] { [] }
 
-    func encodeURLRequest(baseURL: URL) throws -> URLRequest {
+    func createURLRequest(baseURL: URL) -> URLRequest {
         var req = URLRequest(url: baseURL.appendingPathComponent(path))
         req.httpMethod = httpMethod.rawValue
         for (k, v) in headers { req.setValue(v, forHTTPHeaderField: k) }
@@ -362,7 +362,7 @@ private struct PostWithBodyRequest: HTTPRequest {
     var queryItems: [URLQueryItem] {[]}
     var httpBody: SuccessModel
 
-    func encodeURLRequest(baseURL: URL) throws -> URLRequest {
+    func createURLRequest(baseURL: URL) -> URLRequest {
         var req = URLRequest(url: baseURL.appendingPathComponent(path))
         req.httpMethod = httpMethod.rawValue
         for (k, v) in headers { req.setValue(v, forHTTPHeaderField: k) }
@@ -393,7 +393,7 @@ private struct FailureOnlyRequest: HTTPRequest {
     var headers: [String: String] { [:] }
     var queryItems: [URLQueryItem] { [] }
 
-    func encodeURLRequest(baseURL: URL) throws -> URLRequest {
+    func createURLRequest(baseURL: URL) -> URLRequest {
         var req = URLRequest(url: baseURL.appendingPathComponent(path))
         req.httpMethod = httpMethod.rawValue
         return req
@@ -421,7 +421,7 @@ private struct SuccessOnlyRequest: HTTPRequest {
     var headers: [String: String] { [:] }
     var queryItems: [URLQueryItem] { [] }
 
-    func encodeURLRequest(baseURL: URL) throws -> URLRequest {
+    func createURLRequest(baseURL: URL) -> URLRequest {
         var req = URLRequest(url: baseURL.appendingPathComponent(path))
         req.httpMethod = httpMethod.rawValue
         return req

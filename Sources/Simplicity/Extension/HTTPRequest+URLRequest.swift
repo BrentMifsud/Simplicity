@@ -11,7 +11,7 @@ public import Foundation
 /// Default implementations that turn an `HTTPRequest` into a `URLRequest`.
 ///
 /// Conforming types may override specific pieces (for example,
-/// `encodeURLRequest(baseURL:)` or `encodeHTTPBody()`) to customize behavior,
+/// `createURLRequest(baseURL:)` or `encodeHTTPBody()`) to customize behavior,
 /// while continuing to rely on shared setup provided here.
 public extension HTTPRequest {
     /// Encodes this request into a `URLRequest` using JSON encoding by default.
@@ -23,12 +23,11 @@ public extension HTTPRequest {
     /// - Parameter baseURL: The base URL to be combined with the request's path and query items.
     /// - Returns: A fully formed `URLRequest` ready for sending.
     /// - Throws: An error if encoding the request fails.
-    func encodeURLRequest(baseURL: URL) throws -> URLRequest {
+    func createURLRequest(baseURL: URL) -> URLRequest {
         let url = requestURL(baseURL: baseURL)
         var urlRequest = URLRequest(url: url)
         urlRequest.allHTTPHeaderFields = headers
         urlRequest.httpMethod = httpMethod.rawValue
-        urlRequest.httpBody = try encodeHTTPBody()
         return urlRequest
     }
 

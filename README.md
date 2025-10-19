@@ -40,7 +40,7 @@ struct LoginRequest: HTTPRequest {
     var httpBody: Body
 
     // Defaults provided by the library, but can be implmented if desired:
-    // - encodeURLRequest(baseURL:) builds a URLRequest and uses encodeHTTPBody().
+    // - createURLRequest(baseURL:) builds a URLRequest and uses encodeHTTPBody().
     // - encodeHTTPBody() JSON-encodes `httpBody` when present; returns nil for Never/Never?.
     // - decodeSuccessResponseData(_:) and decodeFailureResponseData(_:) decode JSON.
 }

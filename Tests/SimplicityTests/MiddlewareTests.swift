@@ -16,7 +16,7 @@ struct MiddlewareTests {
         var headers: [String : String] = [:]
         var queryItems: [URLQueryItem] = []
 
-        func encodeURLRequest(baseURL: URL) throws -> URLRequest {
+        func createURLRequest(baseURL: URL) -> URLRequest {
             let url = baseURL.appending(path: path).appending(queryItems: queryItems)
             var urlRequest = URLRequest(url: url)
             urlRequest.allHTTPHeaderFields = headers

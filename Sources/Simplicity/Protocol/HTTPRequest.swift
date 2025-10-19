@@ -62,13 +62,13 @@ public nonisolated protocol HTTPRequest: Sendable {
     /// Important:
     /// - This method does not set any HTTP headers. If you change the encoding, ensure you supply an
     ///   appropriate `Content-Type` (and related headers like `Content-Length` when applicable) via
-    ///   your `headers` or within your `encodeURLRequest(baseURL:)` implementation.
+    ///   your `headers` or within your `createURLRequest(baseURL:)` implementation.
     /// - Downstream middleware and the HTTP client may further transform or replace the body before
     ///   sending the request.
     ///
     /// - Returns: The encoded body as `Data`, or `nil` if the request has no body.
     /// - Throws: Any error thrown by the chosen encoder while encoding `httpBody`.
-    /// - SeeAlso: `encodeURLRequest(baseURL:)`, `headers`
+    /// - SeeAlso: `createURLRequest(baseURL:)`, `headers`
     func encodeHTTPBody() throws -> Data?
 
     /// Encodes this request into a `URLRequest` using JSON encoding by default.
@@ -90,7 +90,7 @@ public nonisolated protocol HTTPRequest: Sendable {
     /// - Parameter baseURL: The base URL to be combined with the request's path and query items.
     /// - Returns: A fully formed `URLRequest` ready for sending.
     /// - Throws: An error if encoding the request fails.
-    func encodeURLRequest(baseURL: URL) throws -> URLRequest
+    func createURLRequest(baseURL: URL) -> URLRequest
 
     /// Decodes the HTTP response data into this request's `ResponseBody` type.
     ///

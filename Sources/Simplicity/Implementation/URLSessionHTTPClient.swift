@@ -38,7 +38,7 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
 
     /// Sends a typed HTTP request using `URLSession`, applying middleware and client configuration.
     ///
-    /// The request is encoded into a `URLRequest` using the request's `encodeURLRequest(baseURL:)`,
+    /// The request is encoded into a `URLRequest` using the request's `createURLRequest(baseURL:)`,
     /// then passed through the middleware chain for mutation. The response is returned as an
     /// `HTTPResponse<Request.SuccessResponseBody, Request.FailureResponseBody>`, which supports
     /// on-demand decoding of success and failure bodies.
@@ -87,7 +87,7 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
             do {
                 requestBody = try request.encodeHTTPBody()
             } catch {
-                throw ClientError.encodingError(underlyingError: error)
+                throw ClientError.encodingError(type: "\(Request.RequestBody.self)", underlyingError: error)
             }
         }
 
@@ -117,30 +117,25 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
         }
     }
 
-    private func executeURLRequest(
-        for request: any HTTPRequest,
+    private func executeURLRequest<Request: HTTPRequest>(
+        for request: Request,
         cachePolicy: CachePolicy,
         timeout: Duration
     ) -> @Sendable (Middleware.Request) async throws -> Middleware.Response {
         { [urlSession] middlewareRequest async throws(ClientError) -> Middleware.Response in
-            // Since middleware could potientially modify the request, we need to recreate it.
-            var urlRequest: URLRequest
-            do {
-                urlRequest = try request.encodeURLRequest(baseURL: middlewareRequest.baseURL)
-                urlRequest.httpMethod = middlewareRequest.httpMethod.rawValue
-                // Apply/override headers from middleware
-                for (key, value) in middlewareRequest.headers {
-                    urlRequest.setValue(value, forHTTPHeaderField: key)
-                }
-                // Apply/override body from middleware
-                urlRequest.httpBody = middlewareRequest.httpBody
-
-                // Apply client-provided cache policy and timeout
-                urlRequest.cachePolicy = cachePolicy.urlRequestCachePolicy
-                urlRequest.timeoutInterval = TimeInterval(timeout.components.seconds)
-            } catch {
-                throw ClientError.encodingError(underlyingError: error)
+            if Task.isCancelled { throw .cancelled }
+            var urlRequest = request.createURLRequest(baseURL: middlewareRequest.baseURL)
+            urlRequest.httpMethod = middlewareRequest.httpMethod.rawValue
+            // Apply/override headers from middleware
+            for (key, value) in middlewareRequest.headers {
+                urlRequest.setValue(value, forHTTPHeaderField: key)
             }
+            // Apply/override body from middleware
+            urlRequest.httpBody = middlewareRequest.httpBody
+
+            // Apply client-provided cache policy and timeout
+            urlRequest.cachePolicy = cachePolicy.urlRequestCachePolicy
+            urlRequest.timeoutInterval = TimeInterval(timeout.components.seconds)
 
             do {
                 try Task.checkCancellation()
@@ -169,23 +164,23 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
 
                 return (statusCode: statusCode, url: url, headers: headers, httpBody: data)
             } catch is CancellationError {
-                throw ClientError.cancelled
+                throw .cancelled
             } catch let error as URLError where error.code == .cancelled {
                 // URLSession task cancellation
-                throw ClientError.cancelled
+                throw .cancelled
             } catch let error as URLError {
-                throw ClientError.transport(error)
+                throw .transport(error)
             } catch let error as NSError where error.domain == NSURLErrorDomain {
                 let urlError = URLError(URLError.Code(rawValue: error.code), userInfo: error.userInfo)
                 if urlError.code == .cancelled {
-                    throw ClientError.cancelled
+                    throw .cancelled
                 } else {
-                    throw ClientError.transport(urlError)
+                    throw .transport(urlError)
                 }
             } catch let error as ClientError {
                 throw error
             } catch {
-                throw ClientError.unknown(client: self, underlyingError: error)
+                throw .unknown(client: self, underlyingError: error)
             }
         }
     }

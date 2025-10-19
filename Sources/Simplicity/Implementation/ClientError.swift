@@ -9,7 +9,7 @@ public import Foundation
 
 public nonisolated enum ClientError: Sendable, LocalizedError {
     case cancelled
-    case encodingError(underlyingError: any Error)
+    case encodingError(type: String, underlyingError: any Error)
     case transport(URLError)
     case middleware(middleware: any Middleware, underlyingError: any Error)
     case invalidResponse(String)
@@ -20,8 +20,8 @@ public nonisolated enum ClientError: Sendable, LocalizedError {
         switch self {
         case .cancelled:
             "The request was cancelled"
-        case .encodingError(let underlyingError):
-            "Failed to encode the request body:\n\(underlyingError.localizedDescription)"
+        case let .encodingError(type, underlyingError):
+            "Failed to encode \(type): \(underlyingError.localizedDescription)"
         case .transport(let error):
             error.localizedDescription
         case .invalidResponse(let details):
