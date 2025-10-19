@@ -90,6 +90,7 @@ public protocol Middleware: Sendable {
 
 public extension Middleware {
     typealias Request = (
+        operationID: String,
         httpMethod: HTTPMethod,
         baseURL: URL,
         path: String,

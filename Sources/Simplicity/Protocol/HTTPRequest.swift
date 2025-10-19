@@ -29,7 +29,9 @@ public nonisolated protocol HTTPRequest: Sendable {
     /// The type of the request body, which must be `Encodable` and `Sendable`.
     associatedtype RequestBody: Encodable & Sendable = Never
     /// The type of the response body, which must be `Decodable` and `Sendable`.
-    associatedtype ResponseBody: Decodable & Sendable = Never
+    associatedtype SuccessResponseBody: Decodable & Sendable = Never
+    /// The type of the response body, which must be `Decodable` and `Sendable`.
+    associatedtype FailureResponseBody: Decodable & Sendable = Never
 
     /// A unique identifier for the operation or endpoint.
     static var operationID: String { get }
@@ -44,7 +46,30 @@ public nonisolated protocol HTTPRequest: Sendable {
     /// The body of the HTTP request, typed as `RequestBody`.
     var httpBody: RequestBody { get }
 
-    func encodeBody() throws -> Data?
+    /// Encodes this request’s body into `Data` for transmission over HTTP.
+    ///
+    /// The default implementation (provided in `HTTPRequest+URLRequest.swift`) behaves as follows:
+    /// - If `RequestBody` is `Never` or `Never?`, this method returns `nil`, indicating that the
+    ///   request has no body.
+    /// - Otherwise, it encodes `httpBody` using `JSONEncoder` and returns the resulting `Data`.
+    ///
+    /// Conforming types may override this method to implement alternative encodings, such as:
+    /// - `application/x-www-form-urlencoded`
+    /// - `multipart/form-data`
+    /// - Binary payloads (e.g., images, files)
+    /// - Custom serialization formats
+    ///
+    /// Important:
+    /// - This method does not set any HTTP headers. If you change the encoding, ensure you supply an
+    ///   appropriate `Content-Type` (and related headers like `Content-Length` when applicable) via
+    ///   your `headers` or within your `encodeURLRequest(baseURL:)` implementation.
+    /// - Downstream middleware and the HTTP client may further transform or replace the body before
+    ///   sending the request.
+    ///
+    /// - Returns: The encoded body as `Data`, or `nil` if the request has no body.
+    /// - Throws: Any error thrown by the chosen encoder while encoding `httpBody`.
+    /// - SeeAlso: `encodeURLRequest(baseURL:)`, `headers`
+    func encodeHTTPBody() throws -> Data?
 
     /// Encodes this request into a `URLRequest` using JSON encoding by default.
     ///
@@ -72,7 +97,14 @@ public nonisolated protocol HTTPRequest: Sendable {
     /// - Parameter data: The raw data returned by the HTTP response.
     /// - Returns: The decoded `ResponseBody` object.
     /// - Throws: An error if decoding the response data fails.
-    func decodeResponseData(_ data: Data) throws -> ResponseBody
+    func decodeSuccessResponseData(_ data: Data) throws -> SuccessResponseBody
+
+    /// Decodes the HTTP response data into this request's `SuccessResponseBody` type.
+    ///
+    /// - Parameter data: The raw data returned by the HTTP response.
+    /// - Returns: The decoded `FailureResponseBody` object.
+    /// - Throws: An error if decoding the response data fails.
+    func decodeFailureResponseData(_ data: Data) throws -> FailureResponseBody
 }
 
 // MARK: Default implementation
@@ -112,14 +144,24 @@ public extension HTTPRequest where RequestBody == Never? {
     }
 }
 
-public extension HTTPRequest where ResponseBody: Decodable {
-    /// Default implementation of `decodeResponseData(_:)`.
-    /// This method decodes the response data from JSON into the `ResponseBody` type.
+public extension HTTPRequest where SuccessResponseBody: Decodable {
+    /// Default implementation of `decodeSuccessResponseData(_:)`.
+    /// This method decodes the response data from JSON into the `SuccessResponseBody` type.
     /// Conformers can override this method for custom decoding behavior.
-    func decodeResponseData(_ data: Data) throws -> ResponseBody {
+    func decodeSuccessResponseData(_ data: Data) throws -> SuccessResponseBody {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601Long
-        return try decoder.decode(ResponseBody.self, from: data)
+        return try decoder.decode(SuccessResponseBody.self, from: data)
     }
 }
 
+public extension HTTPRequest where FailureResponseBody: Decodable {
+    /// Default implementation of `decodeFailureResponseData(_:)`.
+    /// This method decodes the response data from JSON into the `FailureResponseBody` type.
+    /// Conformers can override this method for custom decoding behavior.
+    func decodeFailureResponseData(_ data: Data) throws -> FailureResponseBody {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601Long
+        return try decoder.decode(FailureResponseBody.self, from: data)
+    }
+}

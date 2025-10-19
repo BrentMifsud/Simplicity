@@ -2,24 +2,24 @@ public import Foundation
 
 /// A concrete HTTP client that uses `URLSession` to send requests and receive responses,
 /// with support for a configurable base URL and a chain of middlewares.
-/// 
+///
 /// `URLSessionHTTPClient` conforms to `HTTPClient` and is suitable for most networking
 /// scenarios on Apple platforms. It encodes an `HTTPRequest` into a `URLRequest`,
-/// executes it using the provided `URLSession`, and decodes the response body into
-/// the expected `Request.ResponseBody`.
+/// executes it using the provided `URLSession`, and produces an `HTTPResponse<Success, Failure>`
+/// that defers decoding until you explicitly call `decodeSuccessBody()` or `decodeFailureBody()`.
 ///
 /// Features:
 /// - Base URL composition for relative endpoints
 /// - Pluggable middleware chain for request/response interception
-/// - Configurable cache policy per request
+/// - Configurable cache policy and timeout per request
 /// - Cooperative cancellation checks during request execution
+/// - On-demand decoding for both success and failure payloads
 ///
 /// Thread-safety:
-/// - The type is `nonisolated` and can be used across concurrency domains. Be mindful
-///   that mutating `baseURL` or `middlewares` from multiple tasks at the same time
-///   should be coordinated by the caller if needed. It is intended that you should mutate the baseurl and middle ware sparcely.
-///   For example, when changing the app environment from prod to staging or develop. Or adding an authentication middleware after receiving a bearer token
-///   from an auth api.
+/// - The type is `nonisolated` and can be used across concurrency domains. If you plan to
+///   mutate `baseURL` or `middlewares` from multiple tasks, coordinate those writes. These
+///   properties are intended to be changed sparingly (e.g., when switching environments or
+///   installing auth middleware after obtaining a bearer token).
 public nonisolated struct URLSessionHTTPClient: HTTPClient {
     let urlSession: URLSession
     public var baseURL: URL
@@ -36,12 +36,27 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
         self.middlewares = middlewares
     }
 
+    /// Sends a typed HTTP request using `URLSession`, applying middleware and client configuration.
+    ///
+    /// The request is encoded into a `URLRequest` using the request's `encodeURLRequest(baseURL:)`,
+    /// then passed through the middleware chain for mutation. The response is returned as an
+    /// `HTTPResponse<Request.SuccessResponseBody, Request.FailureResponseBody>`, which supports
+    /// on-demand decoding of success and failure bodies.
+    ///
+    /// - Parameters:
+    ///   - request: The typed request to send.
+    ///   - cachePolicy: Cache policy to apply to the URLRequest. Defaults to `.useProtocolCachePolicy`.
+    ///   - timeout: Timeout for the request. Defaults to 30 seconds.
+    /// - Returns: An `HTTPResponse` carrying status, headers, final URL, raw bytes, and decoders
+    ///   for both success and failure bodies.
+    /// - Throws: Any error thrown during request encoding, middleware processing, network transfer,
+    ///   or response handling (including cancellation and URLSession errors).
     @concurrent
     public func send<Request: HTTPRequest>(
         request: Request,
         cachePolicy: CachePolicy = .useProtocolCachePolicy,
         timeout: Duration = .seconds(30)
-    ) async throws -> HTTPResponse<Request.ResponseBody> {
+    ) async throws -> HTTPResponse<Request.SuccessResponseBody, Request.FailureResponseBody> {
         try Task.checkCancellation()
 
         var next: @Sendable (Middleware.Request) async throws -> Middleware.Response = { [urlSession] middlewareRequest -> Middleware.Response in
@@ -100,12 +115,13 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
         let requestBody: Data? = if Request.RequestBody.self == Never.self || Request.RequestBody.self == Never?.self {
             .none
         } else {
-            try request.encodeBody()
+            try request.encodeHTTPBody()
         }
 
         try Task.checkCancellation()
 
         let initialMiddlewareRequest: Middleware.Request = (
+            operationID: type(of: request).operationID,
             httpMethod: request.httpMethod,
             baseURL: baseURL,
             path: request.path,
@@ -117,14 +133,78 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
 
         try Task.checkCancellation()
 
-        let responseBody = try request.decodeResponseData(response.httpBody)
-
-        return HTTPResponse<Request.ResponseBody>(
+        return makeResponse(
             statusCode: response.statusCode,
             url: response.url,
             headers: response.headers,
-            httpBody: responseBody
+            httpBody: response.httpBody,
+            for: request
         )
     }
 }
 
+private extension URLSessionHTTPClient {
+    // MARK: - Response Builders
+
+    // General case: both Success and Failure exist
+    private func makeResponse<Request: HTTPRequest>(
+        statusCode: HTTPStatusCode,
+        url: URL,
+        headers: [String: String],
+        httpBody: Data,
+        for request: Request
+    ) -> HTTPResponse<Request.SuccessResponseBody, Request.FailureResponseBody> {
+        HTTPResponse(
+            statusCode: statusCode,
+            url: url,
+            headers: headers,
+            httpBody: httpBody,
+            successBodyDecoder: { data in
+                try request.decodeSuccessResponseData(data)
+            },
+            failureBodyDecoder: { data in
+                try request.decodeFailureResponseData(data)
+            }
+        )
+    }
+
+    // Specialized: Failure == Never (success-only)
+    private func makeResponse<Request: HTTPRequest>(
+        statusCode: HTTPStatusCode,
+        url: URL,
+        headers: [String: String],
+        httpBody: Data,
+        for request: Request
+    ) -> HTTPResponse<Request.SuccessResponseBody, Request.FailureResponseBody>
+    where Request.FailureResponseBody == Never {
+        HTTPResponse(
+            statusCode: statusCode,
+            url: url,
+            headers: headers,
+            httpBody: httpBody,
+            successBodyDecoder: { data in
+                try request.decodeSuccessResponseData(data)
+            }
+        )
+    }
+
+    // Specialized: Success == Never (failure-only)
+    private func makeResponse<Request: HTTPRequest>(
+        statusCode: HTTPStatusCode,
+        url: URL,
+        headers: [String: String],
+        httpBody: Data,
+        for request: Request
+    ) -> HTTPResponse<Request.SuccessResponseBody, Request.FailureResponseBody>
+    where Request.SuccessResponseBody == Never {
+        HTTPResponse(
+            statusCode: statusCode,
+            url: url,
+            headers: headers,
+            httpBody: httpBody,
+            failureBodyDecoder: { data in
+                try request.decodeFailureResponseData(data)
+            }
+        )
+    }
+}

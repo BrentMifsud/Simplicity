@@ -8,40 +8,55 @@ You can add middleware to perform operations before or after an outgoing request
 ## Usage
 
 ```swift
-// First you create a type to represent a request to your endpoint
+import Foundation
+import Simplicity
+
+// Define a typed request for your endpoint
 struct LoginRequest: HTTPRequest {
-    struct RequestBody: Encodable & Sendable {
+    // Request body type
+    struct Body: Encodable, Sendable {
         var username: String
         var password: String
     }
-    
-    struct ResponseBody: Decodable & Sendable {
-        var token: String
-    }
-    
-    static let operationID: String = "LoginRequest"
+
+    // Response body types
+    struct Success: Decodable, Sendable { var token: String }
+    struct Failure: Decodable, Sendable { var error: String }
+
+    // Associate the types with the HTTPRequest protocol
+    // All of these types can work with `Never` if you wish to omit them.
+    typealias RequestBody = Body
+    typealias SuccessResponseBody = Success
+    typealias FailureResponseBody = Failure
+
+    // Endpoint metadata
+    static var operationID: String { "login" }
     var path: String { "/login" }
-    var httpMethod: Simplicity.HTTPMethod { .post }
-    var headers: [String : String] { [:] }
+    var httpMethod: HTTPMethod { .post }
+    var headers: [String : String] { ["Accept": "application/json"] }
     var queryItems: [URLQueryItem] { [] }
-    var httpBody: RequestBody
-    
-    // No need to implement encodeURLRequest — by default, Simplicity encodes JSON bodies
-    // and sets Content-Type: application/json (and Accept: application/json) when missing.
-    // Override encodeURLRequest if you need a different encoding strategy.
-    
-    // add custom logic to decode your response here, or you can use the default protocol implementation
-    func decodeResponseData(_ data: Data) throws -> ResponseBody {
-        try JSONDecoder().decode(ResponseBody.self, from: data)
-    }
+
+    // The actual body instance to send
+    var httpBody: Body
+
+    // Defaults provided by the library, but can be implmented if desired:
+    // - encodeURLRequest(baseURL:) builds a URLRequest and uses encodeHTTPBody().
+    // - encodeHTTPBody() JSON-encodes `httpBody` when present; returns nil for Never/Never?.
+    // - decodeSuccessResponseData(_:) and decodeFailureResponseData(_:) decode JSON.
 }
 
-// next initialize a client.
-var client = HTTPClient(urlSession: .shared, baseURL: "https://myapi.com", middlewares: [LoggingMiddleware()])
+// Initialize a client and send the request
+let client = URLSessionHTTPClient(baseURL: URL(string: "https://myapi.com")!, middlewares: [])
+let response = try await client.send(request: LoginRequest(httpBody: .init(username: "JohnDoe1234", password: "P@ssword123")))
 
-// Finally, send your request
-let response = try await client.send(request: LoginRequest(username: "JohnDoe1234", password: "P@ssword123"))
-print(response.token)
+// Decode the typed success body or failure body on demand
+if response.statusCode.isSuccess {
+    let model = try response.decodeSuccessBody()
+    print(model.token)
+} else {
+    let failure = try response.decodeFailureBody()
+    print(failure.error)
+}
 ```
 
 ## Middleware
