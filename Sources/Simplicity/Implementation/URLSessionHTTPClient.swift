@@ -168,12 +168,17 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
             } catch let error as URLError where error.code == .cancelled {
                 // URLSession task cancellation
                 throw .cancelled
+            } catch let error as URLError where error.code == .timedOut {
+                // URLSession timed out
+                throw .timedOut
             } catch let error as URLError {
                 throw .transport(error)
             } catch let error as NSError where error.domain == NSURLErrorDomain {
                 let urlError = URLError(URLError.Code(rawValue: error.code), userInfo: error.userInfo)
                 if urlError.code == .cancelled {
                     throw .cancelled
+                } else if urlError.code == .timedOut {
+                    throw .timedOut
                 } else {
                     throw .transport(urlError)
                 }

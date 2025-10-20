@@ -226,7 +226,7 @@ struct URLSessionHTTPClientTests {
         }
         let client = makeClient(baseURL: baseURL, middlewares: [tokenMiddleware])
         MockURLProtocol.setHandler({ _ in
-            throw URLError(.timedOut)
+            throw URLError(.badServerResponse)
         }, forToken: token)
 
         // Act
@@ -237,7 +237,7 @@ struct URLSessionHTTPClientTests {
             // Assert
             switch error {
             case .transport(let urlError):
-                #expect(urlError.code == .timedOut)
+                #expect(urlError.code == .badServerResponse)
                 assertNoNestedClientError(error)
             default:
                 Issue.record("Expected ClientError.transport, got: \(error)")

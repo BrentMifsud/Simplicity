@@ -9,6 +9,7 @@ public import Foundation
 
 public nonisolated enum ClientError: Sendable, LocalizedError {
     case cancelled
+    case timedOut
     case encodingError(type: String, underlyingError: any Error)
     case transport(URLError)
     case middleware(middleware: any Middleware, underlyingError: any Error)
@@ -18,6 +19,8 @@ public nonisolated enum ClientError: Sendable, LocalizedError {
     /// A localized message describing what error occurred.
     public var errorDescription: String? {
         switch self {
+        case .timedOut:
+            "The request timed out"
         case .cancelled:
             "The request was cancelled"
         case let .encodingError(type, underlyingError):
@@ -33,3 +36,4 @@ public nonisolated enum ClientError: Sendable, LocalizedError {
         }
     }
 }
+
