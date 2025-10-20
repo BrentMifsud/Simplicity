@@ -84,4 +84,47 @@ public nonisolated protocol HTTPClient: Sendable {
         cachePolicy: CachePolicy,
         timeout: Duration
     ) async throws(ClientError) -> HTTPResponse<Request.SuccessResponseBody, Request.FailureResponseBody>
+
+    /// Clears any network response caches managed by the client.
+    ///
+    /// Use this method to invalidate and remove cached HTTP responses that the client (or its
+    /// underlying transport) stores for reuse. This is typically backed by `URLCache` on Apple
+    /// platforms, but concrete conformers may implement custom cache stores.
+    ///
+    /// Behavior:
+    /// - Asynchronously removes both in‑memory and on‑disk cached responses owned by the client.
+    /// - Does not throw; completion indicates best‑effort cache invalidation has finished.
+    /// - In‑flight requests are not canceled. Their results may still be cached after completion,
+    ///   depending on cache headers and the implementation.
+    /// - Only affects caches that this client controls. It should not clear global or shared caches
+    ///   that the client does not own.
+    ///
+    /// Concurrency and thread safety:
+    /// - Safe to call from any context. Implementations should coordinate internal state so that
+    ///   concurrent calls do not race or corrupt cache data.
+    /// - May be awaited to ensure that subsequent requests will not read from previously cached
+    ///   entries.
+    ///
+    /// Scope and middleware:
+    /// - This clears stored response data, not credentials, cookies, keychain items, or persistent
+    ///   authentication state (unless a specific middleware documents otherwise).
+    /// - Middlewares that implement their own caches should respect this call by clearing their
+    ///   stored entries, or document if they require separate invalidation.
+    ///
+    /// When to use:
+    /// - After a user logs out or switches accounts.
+    /// - When debugging caching behavior or ensuring fresh data after server‑side changes.
+    /// - Prior to running deterministic tests that must not read stale responses.
+    ///
+    /// Notes:
+    /// - Actual caching behavior depends on server cache headers, the `CachePolicy` used in `send`,
+    ///   and the implementation’s storage strategy.
+    /// - Implementations that do not maintain a cache may implement this as a no‑op.
+    ///
+    /// Example:
+    /// ```swift
+    /// await client.clearNetworkCache()
+    /// // Subsequent requests will fetch fresh responses per cache policy.
+    /// ```
+    func clearNetworkCache() async
 }

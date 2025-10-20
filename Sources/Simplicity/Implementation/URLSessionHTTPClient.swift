@@ -189,6 +189,11 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
             }
         }
     }
+
+    public func clearNetworkCache() async {
+        let cache = urlSession.configuration.urlCache ?? URLCache.shared
+        cache.removeAllCachedResponses()
+    }
 }
 
 private extension URLSessionHTTPClient {
