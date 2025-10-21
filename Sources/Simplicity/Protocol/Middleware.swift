@@ -94,6 +94,7 @@ public extension Middleware {
         httpMethod: HTTPMethod,
         baseURL: URL,
         path: String,
+        queryItems: [URLQueryItem],
         headers: [String: String],
         httpBody: Data?
     )
@@ -104,5 +105,19 @@ public extension Middleware {
         headers: [String: String],
         httpBody: Data
     )
+
+    /// Builds the absolute URL by appending this request's `path` and `queryItems` to `baseURL`.
+    ///
+    /// - Parameter request: The middleware request
+    /// - Returns: A `URL` representing the full endpoint for this request.
+    func requestURL(request: Middleware.Request) -> URL {
+        let url = request.baseURL.appending(path: request.path)
+
+        guard !request.queryItems.isEmpty else {
+            return url
+        }
+
+        return url.appending(queryItems: request.queryItems)
+    }
 }
 

@@ -96,6 +96,7 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
             httpMethod: request.httpMethod,
             baseURL: baseURL,
             path: request.path,
+            queryItems: request.queryItems,
             headers: request.headers,
             httpBody: requestBody
         )
