@@ -172,6 +172,8 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
             } catch let error as URLError where error.code == .timedOut {
                 // URLSession timed out
                 throw .timedOut
+            } catch let error as URLError where error.code == .resourceUnavailable && cachePolicy == .returnCacheDataDontLoad {
+                throw .cacheMiss
             } catch let error as URLError {
                 throw .transport(error)
             } catch let error as NSError where error.domain == NSURLErrorDomain {
@@ -180,6 +182,8 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
                     throw .cancelled
                 } else if urlError.code == .timedOut {
                     throw .timedOut
+                } else if urlError.code == .resourceUnavailable && cachePolicy == .returnCacheDataDontLoad {
+                    throw .cacheMiss
                 } else {
                     throw .transport(urlError)
                 }

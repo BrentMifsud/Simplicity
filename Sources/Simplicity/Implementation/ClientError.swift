@@ -10,6 +10,7 @@ public import Foundation
 public nonisolated enum ClientError: Sendable, LocalizedError {
     case cancelled
     case timedOut
+    case cacheMiss
     case encodingError(type: String, underlyingError: any Error)
     case transport(URLError)
     case middleware(middleware: any Middleware, underlyingError: any Error)
@@ -33,6 +34,8 @@ public nonisolated enum ClientError: Sendable, LocalizedError {
             "\(type(of: middleware)) threw an error:\n\(underlyingError.localizedDescription)"
         case let .unknown(client, underlyingError):
             "An unexpected error was thrown by \(type(of: client)): \(underlyingError.localizedDescription)"
+        case .cacheMiss:
+            "A cache value for the given request was not found"
         }
     }
 }
