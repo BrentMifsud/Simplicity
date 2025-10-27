@@ -24,12 +24,12 @@ jobs:
         with:
           ref: ${{ github.event.inputs.branch || github.ref_name }}
 
-      - name: Set up latest Swift release
-        uses: swift-actions/setup-swift@v2
+      - name: Install Swift 6.2 toolchain
+        uses: swiftlang/swift-install-action@v1
         with:
-          swift-version: "6"
+          swift-version: "6.2"
 
-      - name: Display Swift version
+      - name: Verify Swift toolchain
         run: swift --version
 
       - name: Run Swift tests
