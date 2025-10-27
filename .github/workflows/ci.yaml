@@ -22,7 +22,7 @@ jobs:
       - name: Check out selected or triggering branch
         uses: actions/checkout@v4.2.2
         with:
-          ref: ${{ github.event.inputs.branch || github.ref_name }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.branch || github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
 
       - name: Set up latest Swift release
         uses: swift-actions/setup-swift@v2
