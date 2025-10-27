@@ -20,7 +20,7 @@ jobs:
         os: [macos-latest]
     steps:
       - name: Check out selected or triggering branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.2.2
         with:
           ref: ${{ github.event.inputs.branch || github.ref_name }}
 
