@@ -111,6 +111,30 @@ struct URLSessionHTTPClientTests {
     }
 
     @Test
+    func testUpdateCachedSuccessResponseStoresValue() throws {
+        // Arrange
+        let cache = URLCache(memoryCapacity: 512_000, diskCapacity: 1_024_000, directory: nil)
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [MockURLProtocol.self]
+        config.urlCache = cache
+        let session = URLSession(configuration: config)
+        let client = URLSessionHTTPClient(urlSession: session, baseURL: baseURL, middlewares: [])
+        let expected = SuccessModel(value: "cached")
+        let request = GetSuccessRequest()
+
+        // Act
+        try client.updateCachedSuccessResponse(for: request, responseBody: expected)
+
+        // Assert
+        let urlRequest = request.createURLRequest(baseURL: baseURL)
+        let cachedResponse = cache.cachedResponse(for: urlRequest)
+        #expect(cachedResponse != nil)
+        #expect((cachedResponse?.response as? HTTPURLResponse)?.statusCode == HTTPStatusCode.ok.rawValue)
+        let cachedModel = try JSONDecoder().decode(SuccessModel.self, from: cachedResponse!.data)
+        #expect(cachedModel == expected)
+    }
+
+    @Test
     func testSpecialization_FailureIsNever_allowsSuccessOnly() async throws {
         // Arrange
         let token = UUID().uuidString

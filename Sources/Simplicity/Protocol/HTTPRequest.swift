@@ -92,6 +92,18 @@ public nonisolated protocol HTTPRequest: Sendable {
     /// - Throws: An error if encoding the request fails.
     func createURLRequest(baseURL: URL) -> URLRequest
 
+    /// Encodes a success response body into raw `Data`, typically for caching purposes.
+    ///
+    /// The default implementation (provided when `SuccessResponseBody` conforms to `Encodable`)
+    /// uses `JSONEncoder` with the package's ISO 8601 long date strategy. Conformers that use
+    /// alternate serialization formats should override this method to provide their preferred
+    /// encoding logic.
+    ///
+    /// - Parameter responseBody: The success payload instance to encode.
+    /// - Returns: The encoded payload as `Data`.
+    /// - Throws: Any error produced by the encoder.
+    func encodeSuccessResponseBody(_ responseBody: SuccessResponseBody) throws -> Data
+
     /// Decodes the HTTP response data into this request's `ResponseBody` type.
     ///
     /// - Parameter data: The raw data returned by the HTTP response.
@@ -147,6 +159,26 @@ public extension HTTPRequest where SuccessResponseBody: Decodable {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601Long
         return try decoder.decode(SuccessResponseBody.self, from: data)
+    }
+}
+
+public extension HTTPRequest where SuccessResponseBody: Encodable {
+    /// Default implementation of `encodeSuccessResponseBody(_:)`.
+    /// This method encodes the success response body to JSON using the package's
+    /// ISO 8601 long date strategy.
+    func encodeSuccessResponseBody(_ responseBody: SuccessResponseBody) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601Long
+        return try encoder.encode(responseBody)
+    }
+}
+
+public extension HTTPRequest where SuccessResponseBody == Never {
+    /// Default implementation for requests that can never produce a success payload.
+    /// The provided response value can never exist, so this implementation simply
+    /// returns an empty payload.
+    func encodeSuccessResponseBody(_: SuccessResponseBody) throws -> Data {
+        Data()
     }
 }
 

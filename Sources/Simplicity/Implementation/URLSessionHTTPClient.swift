@@ -195,6 +195,36 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
         }
     }
 
+    public func updateCachedSuccessResponse<Request: HTTPRequest>(
+        for request: Request,
+        responseBody: Request.SuccessResponseBody
+    ) throws(ClientError) {
+        let cache = urlSession.configuration.urlCache ?? URLCache.shared
+        var urlRequest = request.createURLRequest(baseURL: baseURL)
+        urlRequest.httpMethod = request.httpMethod.rawValue
+
+        let encodedBody: Data
+        do {
+            encodedBody = try request.encodeSuccessResponseBody(responseBody)
+        } catch {
+            throw .encodingError(type: "\(Request.SuccessResponseBody.self)", underlyingError: error)
+        }
+
+        let resolvedURL = urlRequest.url ?? request.requestURL(baseURL: baseURL)
+
+        guard let httpResponse = HTTPURLResponse(
+            url: resolvedURL,
+            statusCode: HTTPStatusCode.ok.rawValue,
+            httpVersion: nil,
+            headerFields: [:]
+        ) else {
+            throw .invalidResponse("Failed to build HTTPURLResponse for cached success response")
+        }
+
+        let cachedResponse = CachedURLResponse(response: httpResponse, data: encodedBody)
+        cache.storeCachedResponse(cachedResponse, for: urlRequest)
+    }
+
     public func clearNetworkCache() async {
         let cache = urlSession.configuration.urlCache ?? URLCache.shared
         cache.removeAllCachedResponses()
