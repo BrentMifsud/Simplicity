@@ -20,12 +20,12 @@ jobs:
         os: [macos-latest]
     steps:
       - name: Check out selected or triggering branch
-        uses: actions/checkout@v4.2.2
+        uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.branch || github.event_name == 'pull_request' && github.event.pull_request.head.ref || github.ref_name }}
+          ref: ${{ github.event.inputs.branch || github.ref_name }}
 
       - name: Set up latest Swift release
-        uses: swift-actions/setup-swift@v2
+        uses: swift-actions/setup-swift@v3
         with:
           swift-version: "6.2"
 
