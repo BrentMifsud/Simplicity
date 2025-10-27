@@ -85,6 +85,21 @@ public nonisolated protocol HTTPClient: Sendable {
         timeout: Duration
     ) async throws(ClientError) -> HTTPResponse<Request.SuccessResponseBody, Request.FailureResponseBody>
 
+    /// Stores or updates a cached success response for the provided request key.
+    ///
+    /// Implementations should persist the encoded `responseBody` so that subsequent requests
+    /// for the same `HTTPRequest` can retrieve the cached payload when permitted by the
+    /// configured cache policy.
+    ///
+    /// - Parameters:
+    ///   - request: The request whose response cache entry should be updated.
+    ///   - responseBody: The success payload to encode and cache.
+    /// - Throws: `ClientError` values describing encoding or caching failures.
+    func updateCachedSuccessResponse<Request: HTTPRequest>(
+        for request: Request,
+        responseBody: Request.SuccessResponseBody
+    ) throws(ClientError)
+
     /// Clears any network response caches managed by the client.
     ///
     /// Use this method to invalidate and remove cached HTTP responses that the client (or its
