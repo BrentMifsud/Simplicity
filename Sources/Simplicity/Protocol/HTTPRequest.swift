@@ -115,7 +115,7 @@ public extension HTTPRequest {
     /// - Parameter baseURL: The base URL to which the request-specific `path` and `queryItems` are applied.
     /// - Returns: A `URL` representing the full endpoint for this request.
     func requestURL(baseURL: URL) -> URL {
-        var url = baseURL.appending(path: path)
+        let url = baseURL.appending(path: path)
 
         guard !queryItems.isEmpty else {
             return url

@@ -85,6 +85,62 @@ public nonisolated protocol HTTPClient: Sendable {
         timeout: Duration
     ) async throws(ClientError) -> HTTPResponse<Request.SuccessResponseBody, Request.FailureResponseBody>
 
+    /// Uploads raw data for the given HTTP request through the middleware chain and returns a typed response.
+    ///
+    /// This method constructs the request using the provided `HTTPRequest`, applies all configured
+    /// `middlewares` in order, and performs an HTTP upload of the supplied `data`. Middlewares can
+    /// inspect and modify the request and response, perform authentication, logging, retries, and more.
+    /// The final response is decoded into the request’s declared success or failure body types.
+    ///
+    /// - Parameters:
+    ///   - request: A type conforming to `HTTPRequest` that defines the HTTP method, path/URL,
+    ///     headers, and response decoding strategy. Its associated `SuccessResponseBody` and
+    ///     `FailureResponseBody` determine how the response is decoded.
+    ///   - data: The raw payload to upload as the HTTP request body (e.g., JSON, binary, file bytes).
+    ///     Implementations should set appropriate `Content-Type` headers either from the request or
+    ///     inferred by middleware.
+    ///   - timeout: A per‑call timeout duration for the upload operation. This overrides or augments
+    ///     any default timeout configured by the client or underlying transport.
+    ///
+    /// - Returns: An `HTTPResponse` containing the HTTP status, headers, and a decoded body. On
+    ///   success (per the request’s definition), the body is of type `Request.SuccessResponseBody`.
+    ///   On server‑indicated failure, the body is of type `Request.FailureResponseBody`.
+    ///
+    /// - Throws: `ClientError` when request construction, middleware processing, transport, or decoding
+    ///   fails. Cancellation errors may be thrown if the task is canceled. Errors thrown by any
+    ///   middleware short‑circuit the pipeline and are propagated.
+    ///
+    /// - Concurrency: Marked `@concurrent` and `async`. Safe to call from concurrent contexts. Respect
+    ///   task cancellation and the provided `timeout`.
+    ///
+    /// - Notes:
+    ///   - Middlewares execute from first to last on the request path and unwind in reverse on response.
+    ///   - Implementations should honor `baseURL` for relative paths and allow absolute URLs on the
+    ///     request to take precedence.
+    ///   - If the request already specifies a body in its encoding, this method’s `data` parameter
+    ///     should be used as the source of truth; conformers should document precedence if both exist.
+    ///
+    /// - Example:
+    ///   ```swift
+    ///   let request = UploadAvatarRequest(userID: "42")
+    ///   let imageData = try Data(contentsOf: avatarURL)
+    ///   let response = try await client.upload(request: request,
+    ///                                          data: imageData,
+    ///                                          timeout: .seconds(30))
+    ///   switch response.result {
+    ///   case .success(let body):
+    ///       // Handle decoded success body
+    ///   case .failure(let errorBody):
+    ///       // Handle decoded server error body
+    ///   }
+    ///   ```
+    @concurrent
+    func upload<Request: HTTPRequest>(
+        request: Request,
+        data: Data,
+        timeout: Duration
+    ) async throws(ClientError) -> HTTPResponse<Request.SuccessResponseBody, Request.FailureResponseBody>
+
     /// Clears any network response caches managed by the client.
     ///
     /// Use this method to invalidate and remove cached HTTP responses that the client (or its
