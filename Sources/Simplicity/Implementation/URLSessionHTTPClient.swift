@@ -20,10 +20,10 @@ public import Foundation
 ///   mutate `baseURL` or `middlewares` from multiple tasks, coordinate those writes. These
 ///   properties are intended to be changed sparingly (e.g., when switching environments or
 ///   installing auth middleware after obtaining a bearer token).
-public nonisolated struct URLSessionHTTPClient: HTTPClient {
+public actor URLSessionHTTPClient: HTTPClient {
     let urlSession: URLSession
-    public var baseURL: URL
-    public var middlewares: [any Middleware]
+    public private(set) var baseURL: URL
+    public private(set) var middlewares: [any Middleware]
 
     /// Initializes a new HTTPClient instance.
     /// - Parameters:
@@ -33,6 +33,14 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
     public init(urlSession: URLSession = .shared, baseURL: URL, middlewares: [any Middleware]) {
         self.urlSession = urlSession
         self.baseURL = baseURL
+        self.middlewares = middlewares
+    }
+
+    public func setBaseURL(_ url: URL) {
+        baseURL = url
+    }
+
+    public func setMiddlewares(_ middlewares: [any Middleware]) {
         self.middlewares = middlewares
     }
 
@@ -63,7 +71,7 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
         // create URLRequest task to be executed
         var next = executeURLRequest(for: request, cachePolicy: cachePolicy, timeout: timeout)
 
-        for middleware in middlewares.reversed() {
+        for middleware in await middlewares.reversed() {
             let tmp = next
             next = { middlewareRequest in
                 do {
@@ -94,7 +102,7 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
         let initialMiddlewareRequest: Middleware.Request = (
             operationID: type(of: request).operationID,
             httpMethod: request.httpMethod,
-            baseURL: baseURL,
+            baseURL: await baseURL,
             path: request.path,
             queryItems: request.queryItems,
             headers: request.headers,
@@ -253,7 +261,7 @@ public nonisolated struct URLSessionHTTPClient: HTTPClient {
         }
     }
 
-    private func executeURLRequest<Request: HTTPRequest>(
+    nonisolated private func executeURLRequest<Request: HTTPRequest>(
         for request: Request,
         cachePolicy: CachePolicy,
         timeout: Duration
@@ -340,7 +348,7 @@ private extension URLSessionHTTPClient {
     // MARK: - Response Builders
 
     // General case: both Success and Failure exist
-    private func makeResponse<Request: HTTPRequest>(
+    private nonisolated func makeResponse<Request: HTTPRequest>(
         statusCode: HTTPStatusCode,
         url: URL,
         headers: [String: String],
@@ -362,7 +370,7 @@ private extension URLSessionHTTPClient {
     }
 
     // Specialized: Failure == Never (success-only)
-    private func makeResponse<Request: HTTPRequest>(
+    private nonisolated func makeResponse<Request: HTTPRequest>(
         statusCode: HTTPStatusCode,
         url: URL,
         headers: [String: String],
@@ -382,7 +390,7 @@ private extension URLSessionHTTPClient {
     }
 
     // Specialized: Success == Never (failure-only)
-    private func makeResponse<Request: HTTPRequest>(
+    private nonisolated func makeResponse<Request: HTTPRequest>(
         statusCode: HTTPStatusCode,
         url: URL,
         headers: [String: String],

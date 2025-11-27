@@ -7,7 +7,7 @@
 
 public import Foundation
 
-public nonisolated protocol HTTPClient: Sendable {
+public protocol HTTPClient: Sendable, Actor {
     /// The root URL used to build absolute request URLs for this client.
     ///
     /// Use `baseURL` to define the scheme, host, and optional base path that all
@@ -34,7 +34,7 @@ public nonisolated protocol HTTPClient: Sendable {
     ///
     /// Thread-safety note: Conformers should document whether mutations to
     /// `baseURL` are thread-safe when the client is used concurrently.
-    var baseURL: URL { get set }
+    var baseURL: URL { get }
 
     /// An ordered collection of middleware that intercepts every request sent by this client.
     ///
@@ -69,7 +69,71 @@ public nonisolated protocol HTTPClient: Sendable {
     /// // Order matters: auth → retry → logging
     /// client.middlewares = [AuthMiddleware(), RetryMiddleware(), LoggingMiddleware()]
     /// ```
-    var middlewares: [any Middleware] { get set }
+    var middlewares: [any Middleware] { get }
+
+    /// Sets the root `baseURL` used to resolve relative request paths for this client.
+    ///
+    /// Use this method to change the scheme, host, and optional base path that all
+    /// subsequent requests will be built against. Relative paths provided by `HTTPRequest`
+    /// instances are resolved against this URL. If a request supplies an absolute URL,
+    /// it should take precedence (implementation‑dependent).
+    ///
+    /// - Important: The provided URL must be fully qualified (e.g., `https://api.example.com`)
+    ///   and may include a base path (e.g., `https://api.example.com/v1`). Avoid including
+    ///   query items or fragments; per‑request parameters should be specified by each
+    ///   `HTTPRequest`.
+    ///
+    /// - Parameters:
+    ///   - url: The new base URL to apply to future requests. Trailing slashes are normalized
+    ///     by standard URL resolution rules (e.g., `https://api.example.com/` + `/users` →
+    ///     `https://api.example.com/users`).
+    ///
+    /// - Concurrency: Conformers should document whether calling this method while other
+    ///   requests are in flight is thread‑safe. Since the protocol refines `Actor`, typical
+    ///   implementations will serialize mutations, but consult the specific conformer’s
+    ///   documentation for details.
+    ///
+    /// - Effects: Changing the base URL affects all subsequent requests sent by the client;
+    ///   it does not retroactively modify requests that have already been constructed or sent.
+    ///
+    /// - Example:
+    ///   ```swift
+    ///   await client.setBaseURL(URL(string: "https://api.example.com/v1")!)
+    ///   // A request with path "/users/42" will resolve to:
+    ///   // https://api.example.com/v1/users/42
+    ///   ```
+    func setBaseURL(_ url: URL)
+
+    /// Replaces the client’s middleware pipeline with a new ordered collection.
+    ///
+    /// Use this to configure cross‑cutting behaviors—such as authentication, logging,
+    /// retries/backoff, metrics, caching adapters, header injection, and more—that
+    /// should apply to every request sent by this client.
+    ///
+    /// Execution order:
+    /// - Request phase: middlewares run from first to last (index 0 → end).
+    /// - Response phase: middlewares unwind in reverse order (last → first), allowing
+    ///   outer middlewares to observe and wrap the results of inner ones.
+    ///
+    /// Behavior and error handling:
+    /// - Each middleware may inspect and modify the outgoing request and the incoming response.
+    /// - Errors thrown by any middleware short‑circuit the pipeline and are propagated to the caller.
+    /// - Middlewares should respect Swift concurrency and Task cancellation.
+    ///
+    /// Mutability and scope:
+    /// - Calling this method replaces the entire middleware array; it affects all subsequent requests.
+    /// - Thread‑safety of mutations is implementation‑defined; consult the conformer’s documentation
+    ///   before changing middlewares while requests are in flight.
+    /// - Conformers may provide sensible defaults (e.g., logging) when no middlewares are set.
+    ///
+    /// Ordering tips:
+    /// - Place authentication/credential middlewares early so later middlewares see final headers.
+    /// - Place retries around the transport (i.e., later in the array) so they can retry failures.
+    /// - Place logging/metrics as the outermost layers (earliest) to capture the full lifecycle.
+    ///
+    /// - Parameter middlewares: The new ordered list of middlewares to apply to all requests.
+    ///   The order controls execution as described above.
+    func setMiddlewares(_ middlewares: [any Middleware])
 
     /// Sends an HTTP request using the middleware chain, returning the decoded response body.
     ///
