@@ -199,9 +199,8 @@ public protocol HTTPClient: Sendable, Actor {
     ///   }
     ///   ```
     @concurrent
-    func upload<Request: HTTPRequest>(
+    func upload<Request: HTTPUploadRequest>(
         request: Request,
-        data: Data,
         timeout: Duration
     ) async throws(ClientError) -> HTTPResponse<Request.SuccessResponseBody, Request.FailureResponseBody>
 
@@ -247,4 +246,13 @@ public protocol HTTPClient: Sendable, Actor {
     /// // Subsequent requests will fetch fresh responses per cache policy.
     /// ```
     func clearNetworkCache() async
+}
+
+public extension HTTPClient {
+    func upload<Request: HTTPUploadRequest>(
+        request: Request,
+        timeout: Duration = .seconds(30)
+    ) async throws(ClientError) -> HTTPResponse<Request.SuccessResponseBody, Request.FailureResponseBody> where Request.RequestBody == Never {
+        fatalError("Upload requests must have data to send.")
+    }
 }

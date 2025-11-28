@@ -126,16 +126,15 @@ public actor URLSessionHTTPClient: HTTPClient {
         }
     }
 
-    public func upload<Request>(
+    public func upload<Request: HTTPUploadRequest>(
         request: Request,
-        data: Data,
         timeout: Duration = .seconds(30)
-    ) async throws(ClientError) -> HTTPResponse<Request.SuccessResponseBody, Request.FailureResponseBody> where Request : HTTPRequest {
+    ) async throws(ClientError) -> HTTPResponse<Request.SuccessResponseBody, Request.FailureResponseBody> {
         // If the task was cancelled immediately, exit early.
         if Task.isCancelled { throw ClientError.cancelled }
 
         // create URLRequest task to be executed
-        var next = executeUploadRequest(for: request, data: data, timeout: timeout)
+        var next = executeUploadRequest(for: request, timeout: timeout)
 
         for middleware in middlewares.reversed() {
             let tmp = next
@@ -154,15 +153,12 @@ public actor URLSessionHTTPClient: HTTPClient {
             }
         }
 
-        let requestBody: Data?
-        if Request.RequestBody.self == Never.self || Request.RequestBody.self == Never?.self {
-            requestBody = nil
-        } else {
-            do {
-                requestBody = try request.encodeHTTPBody()
-            } catch {
-                throw ClientError.encodingError(type: "\(Request.RequestBody.self)", underlyingError: error)
-            }
+        let uploadData: Data
+
+        do {
+            uploadData = try request.encodeUploadData()
+        } catch {
+            throw ClientError.encodingError(type: "\(Request.self)", underlyingError: error)
         }
 
         let initialMiddlewareRequest: Middleware.Request = (
@@ -172,7 +168,7 @@ public actor URLSessionHTTPClient: HTTPClient {
             path: request.path,
             queryItems: request.queryItems,
             headers: request.headers,
-            httpBody: requestBody
+            httpBody: uploadData
         )
 
         do {
@@ -189,75 +185,6 @@ public actor URLSessionHTTPClient: HTTPClient {
             throw error
         } catch {
             throw ClientError.unknown(client: self, underlyingError: error)
-        }
-    }
-
-    private func executeUploadRequest<Request: HTTPRequest>(
-        for request: Request,
-        data: Data,
-        timeout: Duration
-    ) -> @Sendable (Middleware.Request) async throws -> Middleware.Response {
-        { [urlSession] middlewareRequest async throws(ClientError) -> Middleware.Response in
-            if Task.isCancelled { throw .cancelled }
-            var urlRequest = request.createURLRequest(baseURL: middlewareRequest.baseURL)
-            urlRequest.httpMethod = middlewareRequest.httpMethod.rawValue
-            // Apply/override headers from middleware
-            for (key, value) in middlewareRequest.headers {
-                urlRequest.setValue(value, forHTTPHeaderField: key)
-            }
-            // Apply/override body from middleware
-            urlRequest.httpBody = middlewareRequest.httpBody
-
-            do {
-                try Task.checkCancellation()
-                let (data, response) = try await urlSession.upload(for: urlRequest, from: data)
-                try Task.checkCancellation()
-
-                guard let httpResponse = response as? HTTPURLResponse else {
-                    throw ClientError.invalidResponse("Response was not an HTTP response")
-                }
-
-                guard let statusCode = HTTPStatusCode(rawValue: httpResponse.statusCode) else {
-                    throw ClientError.invalidResponse("Invalid HTTP status code: \(httpResponse.statusCode)")
-                }
-
-                guard let url = httpResponse.url ?? urlRequest.url else {
-                    throw ClientError.invalidResponse("URL is missing from httpResponse or urlRequest")
-                }
-
-                // Convert header fields from [AnyHashable: Any] to [String: String]
-                let headers: [String: String] = httpResponse.allHeaderFields.reduce(into: [:]) { dict, pair in
-                    if let key = pair.key as? String,
-                       let value = pair.value as? String {
-                        dict[key] = value
-                    }
-                }
-
-                return (statusCode: statusCode, url: url, headers: headers, httpBody: data)
-            } catch is CancellationError {
-                throw .cancelled
-            } catch let error as URLError where error.code == .cancelled {
-                // URLSession task cancellation
-                throw .cancelled
-            } catch let error as URLError where error.code == .timedOut {
-                // URLSession timed out
-                throw .timedOut
-            } catch let error as URLError {
-                throw .transport(error)
-            } catch let error as NSError where error.domain == NSURLErrorDomain {
-                let urlError = URLError(URLError.Code(rawValue: error.code), userInfo: error.userInfo)
-                if urlError.code == .cancelled {
-                    throw .cancelled
-                } else if urlError.code == .timedOut {
-                    throw .timedOut
-                } else {
-                    throw .transport(urlError)
-                }
-            } catch let error as ClientError {
-                throw error
-            } catch {
-                throw .unknown(client: self, underlyingError: error)
-            }
         }
     }
 
@@ -327,6 +254,80 @@ public actor URLSessionHTTPClient: HTTPClient {
                     throw .timedOut
                 } else if urlError.code == .resourceUnavailable && cachePolicy == .returnCacheDataDontLoad {
                     throw .cacheMiss
+                } else {
+                    throw .transport(urlError)
+                }
+            } catch let error as ClientError {
+                throw error
+            } catch {
+                throw .unknown(client: self, underlyingError: error)
+            }
+        }
+    }
+
+    nonisolated private func executeUploadRequest<Request: HTTPUploadRequest>(
+        for request: Request,
+        timeout: Duration
+    ) -> @Sendable (Middleware.Request) async throws -> Middleware.Response {
+        { [urlSession] middlewareRequest async throws(ClientError) -> Middleware.Response in
+            if Task.isCancelled { throw .cancelled }
+
+            guard let data = middlewareRequest.httpBody else {
+                fatalError("There was no data to upload for request: \(Request.self)")
+            }
+
+            var urlRequest = request.createURLRequest(baseURL: middlewareRequest.baseURL)
+            urlRequest.httpMethod = middlewareRequest.httpMethod.rawValue
+            // Apply/override headers from middleware
+            for (key, value) in middlewareRequest.headers {
+                urlRequest.setValue(value, forHTTPHeaderField: key)
+            }
+
+            // Upload requests do not contain an HTTP body.
+            urlRequest.httpBody = nil
+
+            do {
+                try Task.checkCancellation()
+                let (data, response) = try await urlSession.upload(for: urlRequest, from: data)
+                try Task.checkCancellation()
+
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw ClientError.invalidResponse("Response was not an HTTP response")
+                }
+
+                guard let statusCode = HTTPStatusCode(rawValue: httpResponse.statusCode) else {
+                    throw ClientError.invalidResponse("Invalid HTTP status code: \(httpResponse.statusCode)")
+                }
+
+                guard let url = httpResponse.url ?? urlRequest.url else {
+                    throw ClientError.invalidResponse("URL is missing from httpResponse or urlRequest")
+                }
+
+                // Convert header fields from [AnyHashable: Any] to [String: String]
+                let headers: [String: String] = httpResponse.allHeaderFields.reduce(into: [:]) { dict, pair in
+                    if let key = pair.key as? String,
+                       let value = pair.value as? String {
+                        dict[key] = value
+                    }
+                }
+
+                return (statusCode: statusCode, url: url, headers: headers, httpBody: data)
+            } catch is CancellationError {
+                throw .cancelled
+            } catch let error as URLError where error.code == .cancelled {
+                // URLSession task cancellation
+                throw .cancelled
+            } catch let error as URLError where error.code == .timedOut {
+                // URLSession timed out
+                throw .timedOut
+            } catch let error as URLError {
+                throw .transport(error)
+            } catch let error as NSError where error.domain == NSURLErrorDomain {
+                let urlError = URLError(URLError.Code(rawValue: error.code), userInfo: error.userInfo)
+                if urlError.code == .cancelled {
+                    throw .cancelled
+                } else if urlError.code == .timedOut {
+                    throw .timedOut
                 } else {
                     throw .transport(urlError)
                 }
