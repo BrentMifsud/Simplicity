@@ -96,7 +96,8 @@ public extension Middleware {
         path: String,
         queryItems: [URLQueryItem],
         headers: [String: String],
-        httpBody: Data?
+        httpBody: Data?,
+        cachePolicy: CachePolicy
     )
 
     typealias Response = (

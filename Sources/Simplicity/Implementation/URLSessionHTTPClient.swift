@@ -106,7 +106,8 @@ public actor URLSessionHTTPClient: HTTPClient {
             path: request.path,
             queryItems: request.queryItems,
             headers: request.headers,
-            httpBody: requestBody
+            httpBody: requestBody,
+            cachePolicy: cachePolicy
         )
 
         do {
@@ -168,7 +169,8 @@ public actor URLSessionHTTPClient: HTTPClient {
             path: request.path,
             queryItems: request.queryItems,
             headers: request.headers,
-            httpBody: uploadData
+            httpBody: uploadData,
+            cachePolicy: .reloadIgnoringLocalAndRemoteCacheData // Uploads bypass cache
         )
 
         do {
