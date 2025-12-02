@@ -19,15 +19,15 @@ jobs:
       matrix:
         os: [macos-latest]
     steps:
-      - name: Check out selected or triggering branch
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.branch || github.ref_name }}
+          ref: ${{ github.event.inputs.branch }}
 
-      - name: Set up latest Swift release
+      - name: Set up Swift 6.2
         uses: swift-actions/setup-swift@v2
         with:
-          swift-version: "6"
+          swift-version: "6.2"
 
       - name: Display Swift version
         run: swift --version
