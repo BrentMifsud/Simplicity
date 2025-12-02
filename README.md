@@ -24,7 +24,7 @@ Add Simplicity to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/BrentMifsud/Simplicity.git", from: "0.3.0")
+    .package(url: "https://github.com/BrentMifsud/Simplicity.git", from: "1.0.0")
 ]
 ```
 
