@@ -10,42 +10,47 @@ import Simplicity
 
 actor MiddlewareSpy: Middleware {
     private(set) var callTime: Date?
-    private let mutation: (@Sendable (URLRequest, URL, String) -> (URLRequest, URL, String))?
-    private let postResponseOperation: ((Data, HTTPURLResponse) -> Void)?
-    
+    private let thrownError: (any Error)?
+    private let mutation: ((Middleware.Request) -> (Middleware.Request))?
+    private let postResponseOperation: ((Middleware.Response) -> Void)?
+
     init(
-        mutation: (@Sendable (URLRequest, URL, String) -> (URLRequest, URL, String))? = nil,
-        postResponseOperation: ((Data, HTTPURLResponse) -> Void)? = nil
+        thrownError: (any Error)? = nil,
+        mutation: ((Middleware.Request) -> (Middleware.Request))? = nil,
+        postResponseOperation: ((Middleware.Response) -> Void)? = nil
     ) {
+        self.thrownError = thrownError
         self.mutation = mutation
         self.postResponseOperation = postResponseOperation
     }
-    
+
     func intercept(
-        request: URLRequest,
-        baseURL: URL,
-        operationID: String,
-        next: @Sendable (URLRequest, URL, String) async throws -> (data: Data, response: HTTPURLResponse)
-    ) async throws -> (data: Data, response: HTTPURLResponse) {
+        request: (Middleware.Request),
+        next: nonisolated(nonsending) @Sendable (Middleware.Request) async throws -> Middleware.Response
+    ) async throws -> (
+        statusCode: Simplicity.HTTPStatusCode,
+        url: URL,
+        headers: [String : String],
+        httpBody: Data
+    ) {
         callTime = Date()
-        
+
+        if let thrownError {
+            throw thrownError
+        }
+
         var request = request
-        var baseURL = baseURL
-        var operationID = operationID
-        
+
         if let mutation {
-            let (newRequest, newBaseURL, newOperationID) = mutation(request, baseURL, operationID)
-            request = newRequest
-            baseURL = newBaseURL
-            operationID = newOperationID
+            request = mutation(request)
         }
-        
-        if let postResponseOperation {
-            let response = try await next(request, baseURL, operationID)
-            postResponseOperation(response.data, response.response)
-            return response
-        } else {
-            return try await next(request, baseURL, operationID)
+
+        let response = try await next(request)
+
+        if let postResponseOperation = postResponseOperation {
+            postResponseOperation(response)
         }
+
+        return response
     }
 }

@@ -17,12 +17,20 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        os: [macos-latest]
     steps:
-      - name: Check out selected branch
+      - name: Check out selected or triggering branch
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.branch }}
+          ref: ${{ github.event.inputs.branch || github.ref_name }}
+
+      - name: Set up latest Swift release
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: "6"
+
+      - name: Display Swift version
+        run: swift --version
 
       - name: Run Swift tests
         run: swift test

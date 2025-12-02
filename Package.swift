@@ -1,4 +1,4 @@
-// swift-tools-version: 6.1
+// swift-tools-version: 6.2
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -6,11 +6,11 @@ import PackageDescription
 let package = Package(
     name: "Simplicity",
     platforms: [
-        .iOS(.v16),
-        .macCatalyst(.v16),
-        .tvOS(.v16),
-        .watchOS(.v9),
-        .macOS(.v13)
+        .iOS(.v17),
+        .macCatalyst(.v17),
+        .tvOS(.v17),
+        .watchOS(.v10),
+        .macOS(.v14)
     ],
     products: [
         .library(
@@ -20,7 +20,15 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "Simplicity"
+            name: "Simplicity",
+            swiftSettings: [
+                .swiftLanguageMode(.v6),
+                .strictMemorySafety(),
+                .defaultIsolation(nil),
+                .enableUpcomingFeature("InferIsolatedConformances"),
+                .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
+                .enableUpcomingFeature("InternalImportsByDefault"),
+            ]
         ),
         .testTarget(
             name: "SimplicityTests",

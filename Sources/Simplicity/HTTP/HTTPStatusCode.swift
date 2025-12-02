@@ -9,7 +9,7 @@ import Foundation
 
 /// Represents HTTP status codes as defined in RFC 7231 and related RFCs.
 /// Provides convenient typed access to common HTTP response codes.
-public enum HTTPStatusCode: Int, Sendable {
+public nonisolated enum HTTPStatusCode: Int, Sendable, CustomStringConvertible {
     // MARK: - 1xx: Informational responses
     
     /// The request has been received and the process can continue.
@@ -154,5 +154,79 @@ public enum HTTPStatusCode: Int, Sendable {
     /// Returns true if the status code represents a 2xx Success response.
     public var isSuccess: Bool {
         (200..<300) ~= self.rawValue
+    }
+
+    /// A human-readable reason phrase for the HTTP status code (e.g., "Not Found").
+    public var reasonPhrase: String {
+        switch self {
+        case .continue: "Continue"
+        case .switchingProtocols: "Switching Protocols"
+        case .processing: "Processing"
+        case .earlyHints: "Early Hints"
+        case .ok: "OK"
+        case .created: "Created"
+        case .accepted: "Accepted"
+        case .nonAuthoritativeInformation: "Non-Authoritative Information"
+        case .noContent: "No Content"
+        case .resetContent: "Reset Content"
+        case .partialContent: "Partial Content"
+        case .multiStatus: "Multi-Status"
+        case .alreadyReported: "Already Reported"
+        case .imUsed: "IM Used"
+        case .multipleChoices: "Multiple Choices"
+        case .movedPermanently: "Moved Permanently"
+        case .found: "Found"
+        case .seeOther: "See Other"
+        case .notModified: "Not Modified"
+        case .useProxy: "Use Proxy"
+        case .unused: "Unused"
+        case .temporaryRedirect: "Temporary Redirect"
+        case .permanentRedirect: "Permanent Redirect"
+        case .badRequest: "Bad Request"
+        case .unauthorized: "Unauthorized"
+        case .paymentRequired: "Payment Required"
+        case .forbidden: "Forbidden"
+        case .notFound: "Not Found"
+        case .methodNotAllowed: "Method Not Allowed"
+        case .notAcceptable: "Not Acceptable"
+        case .proxyAuthenticationRequired: "Proxy Authentication Required"
+        case .requestTimeout: "Request Timeout"
+        case .conflict: "Conflict"
+        case .gone: "Gone"
+        case .lengthRequired: "Length Required"
+        case .preconditionFailed: "Precondition Failed"
+        case .payloadTooLarge: "Payload Too Large"
+        case .uriTooLong: "URI Too Long"
+        case .unsupportedMediaType: "Unsupported Media Type"
+        case .rangeNotSatisfiable: "Range Not Satisfiable"
+        case .expectationFailed: "Expectation Failed"
+        case .imATeapot: "I'm a Teapot"
+        case .misdirectedRequest: "Misdirected Request"
+        case .unprocessableEntity: "Unprocessable Entity"
+        case .locked: "Locked"
+        case .failedDependency: "Failed Dependency"
+        case .tooEarly: "Too Early"
+        case .upgradeRequired: "Upgrade Required"
+        case .preconditionRequired: "Precondition Required"
+        case .tooManyRequests: "Too Many Requests"
+        case .requestHeaderFieldsTooLarge: "Request Header Fields Too Large"
+        case .unavailableForLegalReasons: "Unavailable For Legal Reasons"
+        case .internalServerError: "Internal Server Error"
+        case .notImplemented: "Not Implemented"
+        case .badGateway: "Bad Gateway"
+        case .serviceUnavailable: "Service Unavailable"
+        case .gatewayTimeout: "Gateway Timeout"
+        case .httpVersionNotSupported: "HTTP Version Not Supported"
+        case .variantAlsoNegotiates: "Variant Also Negotiates"
+        case .insufficientStorage: "Insufficient Storage"
+        case .loopDetected: "Loop Detected"
+        case .notExtended: "Not Extended"
+        case .networkAuthenticationRequired: "Network Authentication Required"
+        }
+    }
+
+    /// A textual representation of the HTTP status code and reason phrase (e.g., "404 Not Found").
+    public var description: String {
+        "\(rawValue) \(reasonPhrase)"
     }
 }
