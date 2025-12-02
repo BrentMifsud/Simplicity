@@ -246,6 +246,98 @@ public protocol HTTPClient: Sendable, Actor {
     /// // Subsequent requests will fetch fresh responses per cache policy.
     /// ```
     func clearNetworkCache() async
+
+    // MARK: - Cache Management
+
+    /// Stores a response in the cache for the given request.
+    ///
+    /// Use this method to manually cache a response that you want to be returned by subsequent
+    /// requests with `returnCacheDataElseLoad` or `returnCacheDataDontLoad` cache policies.
+    /// This is useful for:
+    /// - Pre-populating the cache with known data
+    /// - Updating cached data after a mutation (e.g., after subscribing, update the cached subscriptions list)
+    /// - Working around server-side caching issues
+    ///
+    /// The cache key is derived from the request's URL (baseURL + path + queryItems). Two requests
+    /// with identical URLs will share the same cache entry.
+    ///
+    /// - Parameters:
+    ///   - responseBody: The response body to cache. Must be `Encodable` to serialize for storage.
+    ///   - request: The request to use as the cache key. The URL is derived from `baseURL`, `path`, and `queryItems`.
+    ///   - statusCode: The HTTP status code to associate with the cached response. Defaults to `.ok`.
+    ///   - headers: Optional HTTP headers to associate with the cached response. Defaults to JSON content type.
+    ///
+    /// - Throws: `ClientError.encodingError` if the response body cannot be serialized to JSON.
+    ///
+    /// - Note: This method uses the same `URLCache` that backs `URLSession`, so cached responses
+    ///   will be returned by `send(request:cachePolicy:timeout:)` when using appropriate cache policies.
+    ///
+    /// - Example:
+    ///   ```swift
+    ///   // After a mutation, update the cached list
+    ///   let updatedSubscriptions = try await client.subscribe(to: subscriptionID)
+    ///   try await client.setCachedResponse(
+    ///       updatedSubscriptions,
+    ///       for: CustomerSubscriptionsRequest(active: true, withMerchants: true)
+    ///   )
+    ///   ```
+    func setCachedResponse<Request: HTTPRequest>(
+        _ responseBody: Request.SuccessResponseBody,
+        for request: Request,
+        statusCode: HTTPStatusCode,
+        headers: [String: String]
+    ) async throws(ClientError) where Request.SuccessResponseBody: Encodable
+
+    /// Retrieves the cached response for the given request.
+    ///
+    /// Use this method to check if a cached response exists and retrieve it without making
+    /// a network request. This is useful for:
+    /// - Checking cache state before deciding whether to fetch
+    /// - Retrieving cached data for offline display
+    /// - Debugging cache behavior
+    ///
+    /// - Parameter request: The request to look up in the cache.
+    ///
+    /// - Returns: An `HTTPResponse` containing the cached data.
+    ///
+    /// - Throws: `ClientError.cacheMiss` if no cached response exists for the request.
+    ///
+    /// - Note: This does not validate cache freshness or respect cache headers. It returns
+    ///   whatever is stored, if anything.
+    ///
+    /// - Example:
+    ///   ```swift
+    ///   do {
+    ///       let cached = try await client.cachedResponse(for: CustomerSubscriptionsRequest(...))
+    ///       let subscriptions = try cached.decodeSuccessBody()
+    ///       // Use cached data
+    ///   } catch ClientError.cacheMiss {
+    ///       // No cached data available
+    ///   }
+    ///   ```
+    func cachedResponse<Request: HTTPRequest>(
+        for request: Request
+    ) async throws(ClientError) -> HTTPResponse<Request.SuccessResponseBody, Request.FailureResponseBody>
+
+    /// Removes the cached response for the given request.
+    ///
+    /// Use this method to invalidate a specific cache entry. This is useful for:
+    /// - Forcing a fresh fetch on the next request
+    /// - Clearing stale data after a mutation that affects the cached resource
+    /// - Selective cache invalidation without clearing the entire cache
+    ///
+    /// - Parameter request: The request whose cached response should be removed.
+    ///
+    /// - Note: If no cached response exists for the request, this method does nothing.
+    ///
+    /// - Example:
+    ///   ```swift
+    ///   // After unsubscribing, invalidate the cached subscriptions list
+    ///   await client.removeCachedResponse(for: CustomerSubscriptionsRequest(...))
+    ///   ```
+    func removeCachedResponse<Request: HTTPRequest>(
+        for request: Request
+    ) async
 }
 
 public extension HTTPClient {

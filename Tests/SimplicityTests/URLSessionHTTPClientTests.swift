@@ -438,3 +438,205 @@ private struct SuccessOnlyRequest: HTTPRequest {
     }
 }
 
+// MARK: - Cache Tests
+
+@Suite("URLSessionHTTPClient Cache Tests")
+struct URLSessionHTTPClientCacheTests {
+    let baseURL = URL(string: "https://example.com/api")!
+
+    @Test
+    func testSetCachedResponse_storesInCache() async throws {
+        // Arrange
+        let client = makeCacheableClient(baseURL: baseURL)
+        let expected = CacheableModel(id: 1, name: "cached")
+
+        // Act
+        try await client.setCachedResponse(expected, for: CacheableRequest())
+
+        // Assert - retrieve and verify
+        let cached = try await client.cachedResponse(for: CacheableRequest())
+        let decoded = try cached.decodeSuccessBody()
+        #expect(decoded == expected)
+    }
+
+    @Test
+    func testCachedResponse_throwsCacheMiss_whenNotCached() async throws {
+        // Arrange
+        let client = makeCacheableClient(baseURL: baseURL)
+
+        // Act & Assert
+        do {
+            _ = try await client.cachedResponse(for: CacheableRequest())
+            Issue.record("Expected cacheMiss error")
+        } catch {
+            guard case .cacheMiss = error else {
+                Issue.record("Expected cacheMiss, got: \(error)")
+                return
+            }
+        }
+    }
+
+    @Test
+    func testRemoveCachedResponse_clearsCache() async throws {
+        // Arrange
+        let client = makeCacheableClient(baseURL: baseURL)
+        let model = CacheableModel(id: 2, name: "to-remove")
+        try await client.setCachedResponse(model, for: CacheableRequest())
+
+        // Verify it's cached
+        _ = try await client.cachedResponse(for: CacheableRequest())
+
+        // Act
+        await client.removeCachedResponse(for: CacheableRequest())
+
+        // Assert - should now throw cacheMiss
+        do {
+            _ = try await client.cachedResponse(for: CacheableRequest())
+            Issue.record("Expected cacheMiss error after removal")
+        } catch {
+            guard case .cacheMiss = error else {
+                Issue.record("Expected cacheMiss, got: \(error)")
+                return
+            }
+        }
+    }
+
+    @Test
+    func testCachedResponse_preservesStatusCode() async throws {
+        // Arrange
+        let client = makeCacheableClient(baseURL: baseURL)
+        let model = CacheableModel(id: 3, name: "with-status")
+
+        // Act
+        try await client.setCachedResponse(model, for: CacheableRequest(), statusCode: .created)
+        let cached = try await client.cachedResponse(for: CacheableRequest())
+
+        // Assert
+        #expect(cached.statusCode == .created)
+    }
+
+    @Test
+    func testCachedResponse_preservesHeaders() async throws {
+        // Arrange
+        let client = makeCacheableClient(baseURL: baseURL)
+        let model = CacheableModel(id: 4, name: "with-headers")
+        let headers = ["Content-Type": "application/json", "X-Custom": "value"]
+
+        // Act
+        try await client.setCachedResponse(model, for: CacheableRequest(), headers: headers)
+        let cached = try await client.cachedResponse(for: CacheableRequest())
+
+        // Assert
+        #expect(cached.headers["X-Custom"] == "value")
+    }
+
+    @Test
+    func testCachedResponse_differentQueryParams_differentCacheEntries() async throws {
+        // Arrange
+        let client = makeCacheableClient(baseURL: baseURL)
+        let model1 = CacheableModel(id: 10, name: "query1")
+        let model2 = CacheableModel(id: 20, name: "query2")
+
+        // Act - cache with different query params
+        try await client.setCachedResponse(model1, for: CacheableRequestWithQuery(filter: "a"))
+        try await client.setCachedResponse(model2, for: CacheableRequestWithQuery(filter: "b"))
+
+        // Assert - each query should have its own cache entry
+        let cached1 = try await client.cachedResponse(for: CacheableRequestWithQuery(filter: "a"))
+        let cached2 = try await client.cachedResponse(for: CacheableRequestWithQuery(filter: "b"))
+
+        #expect(try cached1.decodeSuccessBody() == model1)
+        #expect(try cached2.decodeSuccessBody() == model2)
+    }
+
+    @Test
+    func testClearNetworkCache_clearsAllCachedResponses() async throws {
+        // Arrange
+        let client = makeCacheableClient(baseURL: baseURL)
+        let model = CacheableModel(id: 5, name: "to-clear")
+        try await client.setCachedResponse(model, for: CacheableRequest())
+
+        // Act
+        await client.clearNetworkCache()
+
+        // Assert - should now throw cacheMiss
+        do {
+            _ = try await client.cachedResponse(for: CacheableRequest())
+            Issue.record("Expected cacheMiss error after clear")
+        } catch {
+            guard case .cacheMiss = error else {
+                Issue.record("Expected cacheMiss, got: \(error)")
+                return
+            }
+        }
+    }
+}
+
+// MARK: - Cache Test Helpers
+
+private func makeCacheableClient(baseURL: URL) -> URLSessionHTTPClient {
+    let config = URLSessionConfiguration.ephemeral
+    config.urlCache = URLCache(memoryCapacity: 10_000_000, diskCapacity: 0)
+    let session = URLSession(configuration: config)
+    return URLSessionHTTPClient(urlSession: session, baseURL: baseURL, middlewares: [])
+}
+
+private struct CacheableModel: Codable, Sendable, Equatable {
+    let id: Int
+    let name: String
+}
+
+private struct CacheableRequest: HTTPRequest {
+    typealias RequestBody = Never
+    typealias SuccessResponseBody = CacheableModel
+    typealias FailureResponseBody = ErrorModel
+
+    static var operationID: String { "cacheable" }
+    var httpMethod: HTTPMethod { .get }
+    var path: String { "/test/cacheable" }
+    var headers: [String: String] { [:] }
+    var queryItems: [URLQueryItem] { [] }
+
+    func createURLRequest(baseURL: URL) -> URLRequest {
+        var req = URLRequest(url: requestURL(baseURL: baseURL))
+        req.httpMethod = httpMethod.rawValue
+        return req
+    }
+
+    func decodeSuccessResponseData(_ data: Data) throws -> CacheableModel {
+        try JSONDecoder().decode(CacheableModel.self, from: data)
+    }
+
+    func decodeFailureResponseData(_ data: Data) throws -> ErrorModel {
+        try JSONDecoder().decode(ErrorModel.self, from: data)
+    }
+}
+
+private struct CacheableRequestWithQuery: HTTPRequest {
+    typealias RequestBody = Never
+    typealias SuccessResponseBody = CacheableModel
+    typealias FailureResponseBody = ErrorModel
+
+    let filter: String
+
+    static var operationID: String { "cacheable-query" }
+    var httpMethod: HTTPMethod { .get }
+    var path: String { "/test/cacheable" }
+    var headers: [String: String] { [:] }
+    var queryItems: [URLQueryItem] { [URLQueryItem(name: "filter", value: filter)] }
+
+    func createURLRequest(baseURL: URL) -> URLRequest {
+        var req = URLRequest(url: requestURL(baseURL: baseURL))
+        req.httpMethod = httpMethod.rawValue
+        return req
+    }
+
+    func decodeSuccessResponseData(_ data: Data) throws -> CacheableModel {
+        try JSONDecoder().decode(CacheableModel.self, from: data)
+    }
+
+    func decodeFailureResponseData(_ data: Data) throws -> ErrorModel {
+        try JSONDecoder().decode(ErrorModel.self, from: data)
+    }
+}
+

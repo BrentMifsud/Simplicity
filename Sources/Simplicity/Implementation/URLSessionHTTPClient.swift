@@ -343,6 +343,80 @@ public actor URLSessionHTTPClient: HTTPClient {
         let cache = urlSession.configuration.urlCache ?? URLCache.shared
         cache.removeAllCachedResponses()
     }
+
+    // MARK: - Cache Management
+
+    public func setCachedResponse<Request: HTTPRequest>(
+        _ responseBody: Request.SuccessResponseBody,
+        for request: Request,
+        statusCode: HTTPStatusCode = .ok,
+        headers: [String: String] = ["Content-Type": "application/json"]
+    ) async throws(ClientError) where Request.SuccessResponseBody: Encodable {
+        let cache = urlSession.configuration.urlCache ?? URLCache.shared
+        let url = request.requestURL(baseURL: baseURL)
+        let urlRequest = URLRequest(url: url)
+
+        // Encode the response body to JSON
+        let data: Data
+        do {
+            let encoder = JSONEncoder()
+            data = try encoder.encode(responseBody)
+        } catch {
+            throw .encodingError(type: "\(Request.SuccessResponseBody.self)", underlyingError: error)
+        }
+
+        // Create an HTTPURLResponse to store with the cached data
+        guard let httpResponse = HTTPURLResponse(
+            url: url,
+            statusCode: statusCode.rawValue,
+            httpVersion: "HTTP/1.1",
+            headerFields: headers
+        ) else {
+            throw .invalidResponse("Failed to create HTTPURLResponse for caching")
+        }
+
+        let cachedResponse = CachedURLResponse(response: httpResponse, data: data)
+        cache.storeCachedResponse(cachedResponse, for: urlRequest)
+    }
+
+    public func cachedResponse<Request: HTTPRequest>(
+        for request: Request
+    ) async throws(ClientError) -> HTTPResponse<Request.SuccessResponseBody, Request.FailureResponseBody> {
+        let cache = urlSession.configuration.urlCache ?? URLCache.shared
+        let url = request.requestURL(baseURL: baseURL)
+        let urlRequest = URLRequest(url: url)
+
+        guard let cachedResponse = cache.cachedResponse(for: urlRequest),
+              let httpResponse = cachedResponse.response as? HTTPURLResponse,
+              let statusCode = HTTPStatusCode(rawValue: httpResponse.statusCode) else {
+            throw .cacheMiss
+        }
+
+        // Convert header fields from [AnyHashable: Any] to [String: String]
+        let headers: [String: String] = httpResponse.allHeaderFields.reduce(into: [:]) { dict, pair in
+            if let key = pair.key as? String,
+               let value = pair.value as? String {
+                dict[key] = value
+            }
+        }
+
+        return makeResponse(
+            statusCode: statusCode,
+            url: url,
+            headers: headers,
+            httpBody: cachedResponse.data,
+            for: request
+        )
+    }
+
+    public func removeCachedResponse<Request: HTTPRequest>(
+        for request: Request
+    ) async {
+        let cache = urlSession.configuration.urlCache ?? URLCache.shared
+        let url = request.requestURL(baseURL: baseURL)
+        let urlRequest = URLRequest(url: url)
+        cache.removeCachedResponse(for: urlRequest)
+    }
 }
 
 private extension URLSessionHTTPClient {
