@@ -237,7 +237,12 @@ struct URLSessionHTTPClientTests {
             // Assert
             switch error {
             case .transport(let urlError):
+#if os(watchOS)
+                // watchOS may surface cannotConnectToHost (-1004) for this scenario
+                #expect(urlError.code == .badServerResponse || urlError.code == .cannotConnectToHost)
+#else
                 #expect(urlError.code == .badServerResponse)
+#endif
                 assertNoNestedClientError(error)
             default:
                 Issue.record("Expected ClientError.transport, got: \(error)")
@@ -291,7 +296,7 @@ struct URLSessionHTTPClientTests {
         switch error {
         case .middleware(_, let underlying):
             #expect(!(underlying is ClientError), "ClientError.middleware should not wrap a ClientError")
-        case .encodingError(let underlying):
+        case .encodingError(_, let underlying):
             #expect(
                 !(underlying is ClientError),
                 "ClientError.encodingError should not wrap a ClientError",
