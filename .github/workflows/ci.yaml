@@ -15,21 +15,6 @@ on:
 jobs:
   test:
     runs-on: macos-15
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - platform: macOS
-            destination: "platform=macOS"
-          - platform: iOS
-            destination: "platform=iOS Simulator,name=iPhone 16,OS=26.1"
-          - platform: tvOS
-            destination: "platform=tvOS Simulator,name=Apple TV,OS=26.1"
-          - platform: watchOS
-            destination: "platform=watchOS Simulator,name=Apple Watch Series 10 (46mm),OS=26.1"
-          - platform: visionOS
-            destination: "platform=visionOS Simulator,name=Apple Vision Pro,OS=26.1"
-    name: Test (${{ matrix.platform }})
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -41,20 +26,24 @@ jobs:
         with:
           xcode-version: latest-stable
 
+      - name: Display Swift version
+        run: swift --version
+
       - name: Display Xcode version
         run: xcodebuild -version
 
-      - name: Run tests
-        run: |
-          xcodebuild test \
-            -scheme Simplicity \
-            -destination '${{ matrix.destination }}' \
-            -skipPackagePluginValidation \
-            -resultBundlePath TestResults-${{ matrix.platform }}.xcresult
+      - name: Run macOS tests
+        run: swift test
 
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: TestResults-${{ matrix.platform }}
-          path: TestResults-${{ matrix.platform }}.xcresult
+      - name: Run iOS Simulator tests
+        run: xcodebuild test -scheme Simplicity -destination "platform=iOS Simulator,name=iPhone 17 Pro" -skipPackagePluginValidation
+
+      - name: Run tvOS Simulator tests
+        run: xcodebuild test -scheme Simplicity -destination "platform=tvOS Simulator,name=Apple TV" -skipPackagePluginValidation
+
+      - name: Run watchOS Simulator tests
+        run: xcodebuild test -scheme Simplicity -destination "platform=watchOS Simulator,name=Apple Watch Series 10 (46mm)" -skipPackagePluginValidation
+
+      - name: Run visionOS Simulator tests
+        run: xcodebuild test -scheme Simplicity -destination "platform=visionOS Simulator,name=Apple Vision Pro" -skipPackagePluginValidation
+
