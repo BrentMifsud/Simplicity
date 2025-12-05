@@ -239,12 +239,7 @@ struct URLSessionHTTPClientTests {
             // Assert
             switch error {
             case .transport(let urlError):
-#if os(watchOS)
-                // watchOS may surface cannotConnectToHost (-1004) for this scenario
-                #expect(urlError.code == .badServerResponse || urlError.code == .cannotConnectToHost)
-#else
                 #expect(urlError.code == .badServerResponse)
-#endif
                 assertNoNestedClientError(error)
             default:
                 Issue.record("Expected ClientError.transport, got: \(error)")

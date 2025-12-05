@@ -61,15 +61,6 @@ class MockURLProtocol: URLProtocol, @unchecked Sendable {
                 client?.urlProtocol(self, didLoad: data)
             }
             client?.urlProtocolDidFinishLoading(self)
-        } catch let urlError as URLError {
-            // Ensure URLError is properly passed as NSError in NSURLErrorDomain
-            // This is required for watchOS to properly recognize the error
-            let nsError = NSError(
-                domain: NSURLErrorDomain,
-                code: urlError.code.rawValue,
-                userInfo: urlError.userInfo
-            )
-            client?.urlProtocol(self, didFailWithError: nsError)
         } catch {
             client?.urlProtocol(self, didFailWithError: error)
         }
