@@ -39,3 +39,4 @@ The `HTTPRequest` protocol has special handling for bodyless requests:
 ### Testing Approach
 
 Tests use Swift Testing framework (`@Suite`, `@Test`, `#expect`). Network tests mock `URLSession` via `MockURLProtocol` configured on an ephemeral session configuration.
+- When running tests, be sure to run tests for all supported platforms

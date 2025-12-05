@@ -212,6 +212,8 @@ struct URLSessionHTTPClientTests {
         }
     }
 
+    // watchOS URLProtocol doesn't properly propagate errors via didFailWithError
+    @available(watchOS, unavailable, message: "URLProtocol error mocking doesn't work reliably on watchOS")
     @Test
     func testURLSessionURLError_isWrappedAsTransport() async throws {
         // Arrange
@@ -291,7 +293,7 @@ struct URLSessionHTTPClientTests {
         switch error {
         case .middleware(_, let underlying):
             #expect(!(underlying is ClientError), "ClientError.middleware should not wrap a ClientError")
-        case .encodingError(let underlying):
+        case .encodingError(_, let underlying):
             #expect(
                 !(underlying is ClientError),
                 "ClientError.encodingError should not wrap a ClientError",

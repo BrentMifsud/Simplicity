@@ -261,6 +261,20 @@ public actor URLSessionHTTPClient: HTTPClient {
                 }
             } catch let error as ClientError {
                 throw error
+            } catch let error as NSError {
+                // Fallback: check if underlying error is a URLError (can happen on some platforms)
+                if let underlyingURLError = error.userInfo[NSUnderlyingErrorKey] as? URLError {
+                    if underlyingURLError.code == .cancelled {
+                        throw .cancelled
+                    } else if underlyingURLError.code == .timedOut {
+                        throw .timedOut
+                    } else if underlyingURLError.code == .resourceUnavailable && cachePolicy == .returnCacheDataDontLoad {
+                        throw .cacheMiss
+                    } else {
+                        throw .transport(underlyingURLError)
+                    }
+                }
+                throw .unknown(client: self, underlyingError: error)
             } catch {
                 throw .unknown(client: self, underlyingError: error)
             }
@@ -335,6 +349,18 @@ public actor URLSessionHTTPClient: HTTPClient {
                 }
             } catch let error as ClientError {
                 throw error
+            } catch let error as NSError {
+                // Fallback: check if underlying error is a URLError (can happen on some platforms)
+                if let underlyingURLError = error.userInfo[NSUnderlyingErrorKey] as? URLError {
+                    if underlyingURLError.code == .cancelled {
+                        throw .cancelled
+                    } else if underlyingURLError.code == .timedOut {
+                        throw .timedOut
+                    } else {
+                        throw .transport(underlyingURLError)
+                    }
+                }
+                throw .unknown(client: self, underlyingError: error)
             } catch {
                 throw .unknown(client: self, underlyingError: error)
             }
