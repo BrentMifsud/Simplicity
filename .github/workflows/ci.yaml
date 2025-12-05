@@ -22,7 +22,7 @@ jobs:
           - platform: macOS
             command: swift test
           - platform: iOS
-            command: xcodebuild test -scheme Simplicity -destination "platform=iOS Simulator,name=iPhone 17.0,OS=26.1,arch=arm64" -skipPackagePluginValidation
+            command: xcodebuild test -scheme Simplicity -destination "platform=iOS Simulator,name=iPhone 17,OS=26.1,arch=arm64" -skipPackagePluginValidation
           - platform: tvOS
             command: xcodebuild test -scheme Simplicity -destination "platform=tvOS Simulator,name=Apple TV 4k (3rd generation),OS=26.1,arch=arm64" -skipPackagePluginValidation
           - platform: watchOS
