@@ -22,13 +22,13 @@ jobs:
           - platform: macOS
             command: swift test
           - platform: iOS
-            command: xcodebuild test -scheme Simplicity -destination "platform=iOS Simulator,name=iPhone 17 Pro" -skipPackagePluginValidation
+            command: xcodebuild test -scheme Simplicity -destination "platform=iOS Simulator,name=iPhone 17 Pro,OS=26.1" -skipPackagePluginValidation
           - platform: tvOS
-            command: xcodebuild test -scheme Simplicity -destination "platform=tvOS Simulator,name=Apple TV" -skipPackagePluginValidation
+            command: xcodebuild test -scheme Simplicity -destination "platform=tvOS Simulator,name=Apple TV,OS=26.1" -skipPackagePluginValidation
           - platform: watchOS
-            command: xcodebuild test -scheme Simplicity -destination "platform=watchOS Simulator,name=Apple Watch Series 10 (46mm)" -skipPackagePluginValidation
+            command: xcodebuild test -scheme Simplicity -destination "platform=watchOS Simulator,name=Apple Watch Series 10 (46mm),OS=26.1" -skipPackagePluginValidation
           - platform: visionOS
-            command: xcodebuild test -scheme Simplicity -destination "platform=visionOS Simulator,name=Apple Vision Pro" -skipPackagePluginValidation
+            command: xcodebuild test -scheme Simplicity -destination "platform=visionOS Simulator,name=Apple Vision Pro,OS=26.1" -skipPackagePluginValidation
     name: Test (${{ matrix.platform }})
     steps:
       - name: Checkout repository
