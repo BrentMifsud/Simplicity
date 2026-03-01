@@ -5,6 +5,7 @@
 //  Created by Brent Mifsud on 2025-08-07.
 //
 
+import Foundation
 import Simplicity
 import Testing
 

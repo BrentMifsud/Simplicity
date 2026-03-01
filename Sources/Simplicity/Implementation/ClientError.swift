@@ -16,7 +16,7 @@ public nonisolated enum ClientError: Sendable, LocalizedError {
     case transport(URLError)
     case middleware(middleware: any Middleware, underlyingError: any Error)
     case invalidResponse(String)
-    case unknown(client: any HTTPClient, underlyingError: any Error)
+    case unknown(client: any Client, underlyingError: any Error)
 
     /// A localized message describing what error occurred.
     public var errorDescription: String? {
@@ -42,4 +42,3 @@ public nonisolated enum ClientError: Sendable, LocalizedError {
         }
     }
 }
-

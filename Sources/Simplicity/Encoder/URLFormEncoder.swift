@@ -43,7 +43,7 @@ public struct URLFormEncoder {
 // Internal Encoder
 private class _FormEncoder: Encoder {
     var values: [String: String] = [:]
-    var codingPath: [CodingKey] = []
+    var codingPath: [any CodingKey] = []
     var userInfo: [CodingUserInfoKey : Any] = [:]
     
     func container<Key>(keyedBy type: Key.Type) -> KeyedEncodingContainer<Key> {
@@ -51,19 +51,19 @@ private class _FormEncoder: Encoder {
         return KeyedEncodingContainer(container)
     }
     
-    func unkeyedContainer() -> UnkeyedEncodingContainer {
+    func unkeyedContainer() -> any UnkeyedEncodingContainer {
         UnkeyedContainer(encoder: self)
     }
-    
-    func singleValueContainer() -> SingleValueEncodingContainer {
+
+    func singleValueContainer() -> any SingleValueEncodingContainer {
         SingleValueContainer(encoder: self)
     }
     
     // MARK: - Containers
     private struct KeyedContainer<K: CodingKey>: KeyedEncodingContainerProtocol {
         let encoder: _FormEncoder
-        var codingPath: [CodingKey] { encoder.codingPath }
-        
+        var codingPath: [any CodingKey] { encoder.codingPath }
+
         mutating func encodeNil(forKey key: K) throws {}
         mutating func encode<T: Encodable>(_ value: T, forKey key: K) throws {
             encoder.codingPath.append(key)
@@ -76,18 +76,18 @@ private class _FormEncoder: Encoder {
             let container = KeyedContainer<NestedKey>(encoder: encoder)
             return KeyedEncodingContainer(container)
         }
-        mutating func nestedUnkeyedContainer(forKey key: K) -> UnkeyedEncodingContainer {
+        mutating func nestedUnkeyedContainer(forKey key: K) -> any UnkeyedEncodingContainer {
             encoder.codingPath.append(key)
             defer { encoder.codingPath.removeLast() }
             return UnkeyedContainer(encoder: encoder)
         }
-        mutating func superEncoder() -> Encoder { encoder }
-        mutating func superEncoder(forKey key: K) -> Encoder { encoder }
+        mutating func superEncoder() -> any Encoder { encoder }
+        mutating func superEncoder(forKey key: K) -> any Encoder { encoder }
     }
     
     private struct UnkeyedContainer: UnkeyedEncodingContainer {
         let encoder: _FormEncoder
-        var codingPath: [CodingKey] { encoder.codingPath }
+        var codingPath: [any CodingKey] { encoder.codingPath }
         var count: Int = 0
         
         mutating func encodeNil() throws {}
@@ -106,19 +106,19 @@ private class _FormEncoder: Encoder {
             count += 1
             return KeyedEncodingContainer(container)
         }
-        mutating func nestedUnkeyedContainer() -> UnkeyedEncodingContainer {
+        mutating func nestedUnkeyedContainer() -> any UnkeyedEncodingContainer {
             let key = CodingKeyIndex(intValue: count)
             encoder.codingPath.append(key)
             defer { encoder.codingPath.removeLast() }
             count += 1
             return UnkeyedContainer(encoder: encoder)
         }
-        mutating func superEncoder() -> Encoder { encoder }
+        mutating func superEncoder() -> any Encoder { encoder }
     }
     
     private struct SingleValueContainer: SingleValueEncodingContainer {
         let encoder: _FormEncoder
-        var codingPath: [CodingKey] { encoder.codingPath }
+        var codingPath: [any CodingKey] { encoder.codingPath }
         
         mutating func encodeNil() throws {}
         mutating func encode<T: Encodable>(_ value: T) throws {

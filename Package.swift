@@ -3,6 +3,18 @@
 
 import PackageDescription
 
+let swiftSettings: [SwiftSetting] = [
+    .swiftLanguageMode(.v6),
+    .strictMemorySafety(),
+    .defaultIsolation(nil),
+    .enableUpcomingFeature("ExistentialAny"),
+    .enableUpcomingFeature("InferIsolatedConformances"),
+    .enableUpcomingFeature("InternalImportsByDefault"),
+    .enableUpcomingFeature("MemberImportVisibility"),
+    .enableUpcomingFeature("ImmutableWeakCaptures"),
+    .treatAllWarnings(as: .error),
+]
+
 let package = Package(
     name: "Simplicity",
     platforms: [
@@ -19,21 +31,22 @@ let package = Package(
             targets: ["Simplicity"]
         ),
     ],
+    dependencies: [
+        .package(url: "https://github.com/apple/swift-http-types.git", from: "1.0.0"),
+    ],
     targets: [
         .target(
             name: "Simplicity",
-            swiftSettings: [
-                .swiftLanguageMode(.v6),
-                .strictMemorySafety(),
-                .defaultIsolation(nil),
-                .enableUpcomingFeature("InferIsolatedConformances"),
-                .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
-                .enableUpcomingFeature("InternalImportsByDefault"),
-            ]
+            dependencies: [
+                .product(name: "HTTPTypes", package: "swift-http-types"),
+                .product(name: "HTTPTypesFoundation", package: "swift-http-types"),
+            ],
+            swiftSettings: swiftSettings
         ),
         .testTarget(
             name: "SimplicityTests",
-            dependencies: ["Simplicity"]
+            dependencies: ["Simplicity"],
+            swiftSettings: swiftSettings
         ),
     ]
 )

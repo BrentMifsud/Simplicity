@@ -1,137 +1,84 @@
 import Foundation
 import Testing
+import HTTPTypes
 @testable import Simplicity
 
 // MARK: - Tests
 
-@Suite("URLSessionHTTPClient Tests")
-struct URLSessionHTTPClientTests {
+@Suite("URLSessionClient Tests")
+struct URLSessionClientTests {
     let baseURL = URL(string: "https://example.com/api")!
 
     @Test
     func testSuccessDecoding_returnsModel() async throws {
         // Arrange
-        let token = UUID().uuidString
-        let tokenMiddleware = MiddlewareSpy { req in
-            var req = req
-            var headers = req.headers
-            headers["X-Mock-Token"] = token
-            req.headers = headers
-            return req
-        }
-        let client = makeClient(baseURL: baseURL, middlewares: [tokenMiddleware])
         let expected = SuccessModel(value: "ok")
-        MockURLProtocol.setHandler({ request in
+        let client = makeClient(baseURL: baseURL) { _, _ in
             let data = try JSONEncoder().encode(expected)
-            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
-            return (response, data)
-        }, forToken: token)
+            return (data, HTTPResponse(status: .ok, headerFields: [.contentType: "application/json"]))
+        }
 
         // Act
-        let response = try await client.send(request: GetSuccessRequest())
-        MockURLProtocol.removeHandler(forToken: token)
+        let response = try await client.send(GetSuccessRequest())
 
         // Assert
-        let model = try JSONDecoder().decode(SuccessModel.self, from: response.httpBody)
+        let model = try JSONDecoder().decode(SuccessModel.self, from: response.body)
         #expect(model == expected)
     }
 
     @Test
     func testFailureDecoding_returnsErrorPayload() async throws {
         // Arrange
-        let token = UUID().uuidString
-        let tokenMiddleware = MiddlewareSpy { req in
-            var req = req
-            var headers = req.headers
-            headers["X-Mock-Token"] = token
-            req.headers = headers
-            return req
-        }
-        let client = makeClient(baseURL: baseURL, middlewares: [tokenMiddleware])
         let expected = ErrorModel(message: "bad")
-        MockURLProtocol.setHandler({ request in
+        let client = makeClient(baseURL: baseURL) { _, _ in
             let data = try JSONEncoder().encode(expected)
-            let response = HTTPURLResponse(url: request.url!, statusCode: 400, httpVersion: nil, headerFields: ["Content-Type": "application/json"])!
-            return (response, data)
-        }, forToken: token)
+            return (data, HTTPResponse(status: .badRequest, headerFields: [.contentType: "application/json"]))
+        }
 
         // Act
-        let response = try await client.send(request: GetSuccessRequest())
-        MockURLProtocol.removeHandler(forToken: token)
+        let response = try await client.send(GetSuccessRequest())
 
         // Assert
-        let err = try JSONDecoder().decode(ErrorModel.self, from: response.httpBody)
+        let err = try JSONDecoder().decode(ErrorModel.self, from: response.body)
         #expect(err == expected)
     }
 
     @Test
     func testRequestBodyNoneWhenRequestBodyIsNever() async throws {
         // Arrange
-        let token = UUID().uuidString
-        let tokenMiddleware = MiddlewareSpy { req in
-            var req = req
-            var headers = req.headers
-            headers["X-Mock-Token"] = token
-            req.headers = headers
-            return req
+        let client = makeClient(baseURL: baseURL) { _, body in
+            #expect(body == nil)
+            return (Data(), HTTPResponse(status: .ok))
         }
-        let client = makeClient(baseURL: baseURL, middlewares: [tokenMiddleware])
-        MockURLProtocol.setHandler({ request in
-            #expect(request.httpBody == nil)
-            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-            return (response, Data())
-        }, forToken: token)
 
         // Act
-        _ = try await client.send(request: GetSuccessRequest())
-        MockURLProtocol.removeHandler(forToken: token)
+        _ = try await client.send(GetSuccessRequest())
     }
 
     @Test
     func testBaseURLComposition_usesClientBaseURLAndPath() async throws {
         // Arrange
-        let token = UUID().uuidString
-        let tokenMiddleware = MiddlewareSpy { req in
-            var req = req
-            var headers = req.headers
-            headers["X-Mock-Token"] = token
-            req.headers = headers
-            return req
+        let client = makeClient(baseURL: baseURL) { request, _ in
+            let url = reconstructURL(from: request)
+            #expect(url == "https://example.com/api/test/success")
+            return (Data(), HTTPResponse(status: .ok))
         }
-        let client = makeClient(baseURL: baseURL, middlewares: [tokenMiddleware])
-        MockURLProtocol.setHandler({ request in
-            #expect(request.url?.absoluteString == "https://example.com/api/test/success")
-            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-            return (response, Data())
-        }, forToken: token)
 
         // Act
-        _ = try await client.send(request: GetSuccessRequest())
-        MockURLProtocol.removeHandler(forToken: token)
+        _ = try await client.send(GetSuccessRequest())
     }
 
     @Test
     func testSpecialization_FailureIsNever_allowsSuccessOnly() async throws {
         // Arrange
-        let token = UUID().uuidString
-        let tokenMiddleware = MiddlewareSpy { req in
-            var req = req
-            var headers = req.headers
-            headers["X-Mock-Token"] = token
-            req.headers = headers
-            return req
-        }
-        let client = makeClient(baseURL: baseURL, middlewares: [tokenMiddleware])
         let expected = SuccessModel(value: "ok")
-        MockURLProtocol.setHandler({ request in
+        let client = makeClient(baseURL: baseURL) { _, _ in
             let data = try JSONEncoder().encode(expected)
-            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
-            return (response, data)
-        }, forToken: token)
+            return (data, HTTPResponse(status: .ok))
+        }
 
         // Act
-        let response = try await client.send(request: SuccessOnlyRequest())
-        MockURLProtocol.removeHandler(forToken: token)
+        let response = try await client.send(SuccessOnlyRequest())
         let model = try response.decodeSuccessBody()
 
         // Assert
@@ -141,25 +88,14 @@ struct URLSessionHTTPClientTests {
     @Test
     func testSpecialization_SuccessIsNever_allowsFailureOnly() async throws {
         // Arrange
-        let token = UUID().uuidString
-        let tokenMiddleware = MiddlewareSpy { req in
-            var req = req
-            var headers = req.headers
-            headers["X-Mock-Token"] = token
-            req.headers = headers
-            return req
-        }
-        let client = makeClient(baseURL: baseURL, middlewares: [tokenMiddleware])
         let expected = ErrorModel(message: "nope")
-        MockURLProtocol.setHandler({ request in
+        let client = makeClient(baseURL: baseURL) { _, _ in
             let data = try JSONEncoder().encode(expected)
-            let response = HTTPURLResponse(url: request.url!, statusCode: 400, httpVersion: nil, headerFields: nil)!
-            return (response, data)
-        }, forToken: token)
+            return (data, HTTPResponse(status: .badRequest))
+        }
 
         // Act
-        let response = try await client.send(request: FailureOnlyRequest())
-        MockURLProtocol.removeHandler(forToken: token)
+        let response = try await client.send(FailureOnlyRequest())
         let err = try response.decodeFailureBody()
 
         // Assert
@@ -171,11 +107,14 @@ struct URLSessionHTTPClientTests {
         // Arrange
         enum DummyError: Error, Equatable { case boom }
         let throwingMiddleware = MiddlewareSpy(thrownError: DummyError.boom)
-        let client = makeClient(baseURL: baseURL, middlewares: [throwingMiddleware])
+        let client = makeClient(baseURL: baseURL, middlewares: [throwingMiddleware]) { _, _ in
+            Issue.record("Handler should not be called when middleware throws")
+            return (Data(), HTTPResponse(status: .ok))
+        }
 
         // Act
         do {
-            _ = try await client.send(request: GetSuccessRequest())
+            _ = try await client.send(GetSuccessRequest())
             Issue.record("Expected to throw, but succeeded")
         } catch {
             // Assert: should be wrapped as .middleware with underlying DummyError
@@ -194,11 +133,14 @@ struct URLSessionHTTPClientTests {
     func testMiddlewareClientError_isNotWrapped() async throws {
         // Arrange
         let middleware = MiddlewareSpy(thrownError: ClientError.invalidResponse("forced"))
-        let client = makeClient(baseURL: baseURL, middlewares: [middleware])
+        let client = makeClient(baseURL: baseURL, middlewares: [middleware]) { _, _ in
+            Issue.record("Handler should not be called when middleware throws")
+            return (Data(), HTTPResponse(status: .ok))
+        }
 
         // Act
         do {
-            _ = try await client.send(request: GetSuccessRequest())
+            _ = try await client.send(GetSuccessRequest())
             Issue.record("Expected to throw, but succeeded")
         } catch {
             // Assert: should be the exact same ClientError, not wrapped
@@ -212,28 +154,16 @@ struct URLSessionHTTPClientTests {
         }
     }
 
-    // watchOS URLProtocol doesn't properly propagate errors via didFailWithError
-    @available(watchOS, unavailable, message: "URLProtocol error mocking doesn't work reliably on watchOS")
     @Test
     func testURLSessionURLError_isWrappedAsTransport() async throws {
         // Arrange
-        let token = UUID().uuidString
-        defer { MockURLProtocol.removeHandler(forToken: token) }
-        let tokenMiddleware = MiddlewareSpy { req in
-            var req = req
-            var headers = req.headers
-            headers["X-Mock-Token"] = token
-            req.headers = headers
-            return req
-        }
-        let client = makeClient(baseURL: baseURL, middlewares: [tokenMiddleware])
-        MockURLProtocol.setHandler({ _ in
+        let client = makeClient(baseURL: baseURL) { _, _ in
             throw URLError(.badServerResponse)
-        }, forToken: token)
+        }
 
         // Act
         do {
-            _ = try await client.send(request: GetSuccessRequest())
+            _ = try await client.send(GetSuccessRequest())
             Issue.record("Expected to throw, but succeeded")
         } catch {
             // Assert
@@ -248,36 +178,18 @@ struct URLSessionHTTPClientTests {
     }
 
     @Test
-    func testInvalidStatusCode_isInvalidResponse() async throws {
+    func testUnusualStatusCode_returnsResponseWithInvalidKind() async throws {
         // Arrange
-        let token = UUID().uuidString
-        defer { MockURLProtocol.removeHandler(forToken: token) }
-        let tokenMiddleware = MiddlewareSpy { req in
-            var req = req
-            var headers = req.headers
-            headers["X-Mock-Token"] = token
-            req.headers = headers
-            return req
+        let client = makeClient(baseURL: baseURL) { _, _ in
+            (Data(), HTTPResponse(status: HTTPResponse.Status(code: 999)))
         }
-        let client = makeClient(baseURL: baseURL, middlewares: [tokenMiddleware])
-        MockURLProtocol.setHandler({ request in
-            let response = HTTPURLResponse(url: request.url!, statusCode: 999, httpVersion: nil, headerFields: nil)!
-            return (response, Data())
-        }, forToken: token)
 
-        // Act
-        do {
-            _ = try await client.send(request: GetSuccessRequest())
-            Issue.record("Expected to throw, but succeeded")
-        } catch {
-            // Assert
-            if case let .invalidResponse(message) = error {
-                #expect(message.contains("Invalid HTTP status code"))
-            } else {
-                Issue.record(error, "Expected an invalidResponse error")
-            }
-            assertNoNestedClientError(error)
-        }
+        // Act — with Apple's HTTPResponse.Status, any status code is valid
+        let response = try await client.send(GetSuccessRequest())
+
+        // Assert — status code 999 has kind .invalid
+        #expect(response.status.code == 999)
+        #expect(response.status.kind == .invalid)
     }
 
     // MARK: - Assertions
@@ -313,11 +225,31 @@ struct URLSessionHTTPClientTests {
 
 // MARK: - Helpers
 
-private func makeClient(baseURL: URL, middlewares: [any Middleware] = []) -> URLSessionHTTPClient {
-    let config = URLSessionConfiguration.ephemeral
-    config.protocolClasses = [MockURLProtocol.self]
-    let session = URLSession(configuration: config)
-    return URLSessionHTTPClient(urlSession: session, baseURL: baseURL, middlewares: middlewares)
+private func makeClient(
+    baseURL: URL,
+    middlewares: [any Middleware] = [],
+    handler: @escaping @Sendable (HTTPRequest, Data?) async throws -> (Data, HTTPResponse)
+) -> URLSessionClient {
+    URLSessionClient(
+        transport: MockTransport(handler: handler),
+        baseURL: baseURL,
+        middlewares: middlewares
+    )
+}
+
+/// Reconstructs a URL string from an HTTPRequest's components for test assertions.
+private func reconstructURL(from request: HTTPRequest) -> String {
+    var string = ""
+    if let scheme = request.scheme {
+        string += scheme + "://"
+    }
+    if let authority = request.authority {
+        string += authority
+    }
+    if let path = request.path {
+        string += path
+    }
+    return string
 }
 
 // MARK: - Test Requests
@@ -325,134 +257,107 @@ private func makeClient(baseURL: URL, middlewares: [any Middleware] = []) -> URL
 private struct SuccessModel: Codable, Sendable, Equatable { let value: String }
 private struct ErrorModel: Codable, Sendable, Equatable { let message: String }
 
-private struct GetSuccessRequest: HTTPRequest {
+private struct GetSuccessRequest: Request {
     typealias RequestBody = Never
     typealias SuccessResponseBody = SuccessModel
     typealias FailureResponseBody = ErrorModel
 
     static var operationID: String { "success" }
-    var httpMethod: HTTPMethod { .get }
+    var method: HTTPRequest.Method { .get }
     var path: String { "/test/success" }
-    var headers: [String: String] { [:] }
+    var headerFields: HTTPFields { HTTPFields() }
     var queryItems: [URLQueryItem] { [] }
 
-    func createURLRequest(baseURL: URL) -> URLRequest {
-        var req = URLRequest(url: baseURL.appendingPathComponent(path))
-        req.httpMethod = httpMethod.rawValue
-        for (k, v) in headers { req.setValue(v, forHTTPHeaderField: k) }
-        return req
-    }
-
-    func decodeSuccessResponseData(_ data: Data) throws -> SuccessModel {
+    func decodeSuccessBody(from data: Data) throws -> SuccessModel {
         try JSONDecoder().decode(SuccessModel.self, from: data)
     }
 
-    func decodeFailureResponseData(_ data: Data) throws -> ErrorModel {
+    func decodeFailureBody(from data: Data) throws -> ErrorModel {
         try JSONDecoder().decode(ErrorModel.self, from: data)
     }
 }
 
-private struct PostWithBodyRequest: HTTPRequest {
+private struct PostWithBodyRequest: Request {
     typealias RequestBody = SuccessModel
     typealias SuccessResponseBody = SuccessModel
     typealias FailureResponseBody = ErrorModel
 
     static var operationID: String { "body" }
-    var httpMethod: HTTPMethod { .post }
+    var method: HTTPRequest.Method { .post }
     var path: String { "/test/body" }
-    var headers: [String: String] { ["Content-Type": "application/json"] }
-    var queryItems: [URLQueryItem] {[]}
-    var httpBody: SuccessModel
+    var headerFields: HTTPFields { [.contentType: "application/json"] }
+    var queryItems: [URLQueryItem] { [] }
+    var body: SuccessModel
 
-    func createURLRequest(baseURL: URL) -> URLRequest {
-        var req = URLRequest(url: baseURL.appendingPathComponent(path))
-        req.httpMethod = httpMethod.rawValue
-        for (k, v) in headers { req.setValue(v, forHTTPHeaderField: k) }
-        return req
+    func encodeBody() throws -> Data? {
+        try JSONEncoder().encode(body)
     }
 
-    func encodeHTTPBody() throws -> Data? {
-        try JSONEncoder().encode(httpBody)
-    }
-
-    func decodeSuccessResponseData(_ data: Data) throws -> SuccessModel {
+    func decodeSuccessBody(from data: Data) throws -> SuccessModel {
         try JSONDecoder().decode(SuccessModel.self, from: data)
     }
 
-    func decodeFailureResponseData(_ data: Data) throws -> ErrorModel {
+    func decodeFailureBody(from data: Data) throws -> ErrorModel {
         try JSONDecoder().decode(ErrorModel.self, from: data)
     }
 }
 
-private struct FailureOnlyRequest: HTTPRequest {
+private struct FailureOnlyRequest: Request {
     typealias RequestBody = Never
     typealias SuccessResponseBody = Never
     typealias FailureResponseBody = ErrorModel
 
     static var operationID: String { "failure" }
-    var httpMethod: HTTPMethod { .get }
+    var method: HTTPRequest.Method { .get }
     var path: String { "/test/failure-only" }
-    var headers: [String: String] { [:] }
+    var headerFields: HTTPFields { HTTPFields() }
     var queryItems: [URLQueryItem] { [] }
 
-    func createURLRequest(baseURL: URL) -> URLRequest {
-        var req = URLRequest(url: baseURL.appendingPathComponent(path))
-        req.httpMethod = httpMethod.rawValue
-        return req
-    }
+    func encodeBody() throws -> Data? { nil }
 
-    func encodeHTTPBody() throws -> Data? { nil }
-
-    func decodeSuccessResponseData(_ data: Data) throws -> Never {
+    func decodeSuccessBody(from data: Data) throws -> Never {
         fatalError("should not decode success for FailureOnlyRequest")
     }
 
-    func decodeFailureResponseData(_ data: Data) throws -> ErrorModel {
+    func decodeFailureBody(from data: Data) throws -> ErrorModel {
         try JSONDecoder().decode(ErrorModel.self, from: data)
     }
 }
 
-private struct SuccessOnlyRequest: HTTPRequest {
+private struct SuccessOnlyRequest: Request {
     typealias RequestBody = Never
     typealias SuccessResponseBody = SuccessModel
     typealias FailureResponseBody = Never
 
     static var operationID: String { "success-only" }
-    var httpMethod: HTTPMethod { .get }
+    var method: HTTPRequest.Method { .get }
     var path: String { "/test/success-only" }
-    var headers: [String: String] { [:] }
+    var headerFields: HTTPFields { HTTPFields() }
     var queryItems: [URLQueryItem] { [] }
 
-    func createURLRequest(baseURL: URL) -> URLRequest {
-        var req = URLRequest(url: baseURL.appendingPathComponent(path))
-        req.httpMethod = httpMethod.rawValue
-        return req
-    }
+    func encodeBody() throws -> Data? { nil }
 
-    func encodeHTTPBody() throws -> Data? { nil }
-
-    func decodeSuccessResponseData(_ data: Data) throws -> SuccessModel {
+    func decodeSuccessBody(from data: Data) throws -> SuccessModel {
         try JSONDecoder().decode(SuccessModel.self, from: data)
     }
 
-    func decodeFailureResponseData(_ data: Data) throws -> Never {
+    func decodeFailureBody(from data: Data) throws -> Never {
         fatalError("should not decode failure for SuccessOnlyRequest")
     }
 }
 
 // MARK: - Decoding Error Tests
 
-@Suite("HTTPResponse Decoding Error Tests")
-struct HTTPResponseDecodingErrorTests {
+@Suite("Response Decoding Error Tests")
+struct ResponseDecodingErrorTests {
     @Test
     func testDecodeSuccessBody_throwsDecodingError_withResponseBody() throws {
         // Arrange — response body is valid JSON but wrong shape for SuccessModel
         let mismatchedBody = Data("{\"unexpected\":\"field\"}".utf8)
-        let response = HTTPResponse<SuccessModel, ErrorModel>(
-            statusCode: .ok,
+        let response = Response<SuccessModel, ErrorModel>(
+            httpResponse: HTTPResponse(status: .ok),
             url: URL(string: "https://example.com/test")!,
-            headers: [:],
-            httpBody: mismatchedBody,
+            body: mismatchedBody,
             successBodyDecoder: { data in
                 try JSONDecoder().decode(SuccessModel.self, from: data)
             },
@@ -480,11 +385,10 @@ struct HTTPResponseDecodingErrorTests {
     func testDecodeFailureBody_throwsDecodingError_withResponseBody() throws {
         // Arrange — response body is not valid JSON at all
         let invalidBody = Data("not json".utf8)
-        let response = HTTPResponse<SuccessModel, ErrorModel>(
-            statusCode: .badRequest,
+        let response = Response<SuccessModel, ErrorModel>(
+            httpResponse: HTTPResponse(status: .badRequest),
             url: URL(string: "https://example.com/test")!,
-            headers: [:],
-            httpBody: invalidBody,
+            body: invalidBody,
             successBodyDecoder: { data in
                 try JSONDecoder().decode(SuccessModel.self, from: data)
             },
@@ -536,8 +440,8 @@ private struct AnyCodingKey: CodingKey {
 
 // MARK: - Cache Tests
 
-@Suite("URLSessionHTTPClient Cache Tests")
-struct URLSessionHTTPClientCacheTests {
+@Suite("URLSessionClient Cache Tests")
+struct URLSessionClientCacheTests {
     let baseURL = URL(string: "https://example.com/api")!
 
     @Test
@@ -604,11 +508,11 @@ struct URLSessionHTTPClientCacheTests {
         let model = CacheableModel(id: 3, name: "with-status")
 
         // Act
-        try await client.setCachedResponse(model, for: CacheableRequest(), statusCode: .created)
+        try await client.setCachedResponse(model, for: CacheableRequest(), status: .created)
         let cached = try await client.cachedResponse(for: CacheableRequest())
 
         // Assert
-        #expect(cached.statusCode == .created)
+        #expect(cached.status == .created)
     }
 
     @Test
@@ -616,14 +520,16 @@ struct URLSessionHTTPClientCacheTests {
         // Arrange
         let client = makeCacheableClient(baseURL: baseURL)
         let model = CacheableModel(id: 4, name: "with-headers")
-        let headers = ["Content-Type": "application/json", "X-Custom": "value"]
+        var headerFields = HTTPFields()
+        headerFields[.contentType] = "application/json"
+        headerFields[HTTPField.Name("X-Custom")!] = "value"
 
         // Act
-        try await client.setCachedResponse(model, for: CacheableRequest(), headers: headers)
+        try await client.setCachedResponse(model, for: CacheableRequest(), headerFields: headerFields)
         let cached = try await client.cachedResponse(for: CacheableRequest())
 
         // Assert
-        #expect(cached.headers["X-Custom"] == "value")
+        #expect(cached.headerFields[HTTPField.Name("X-Custom")!] == "value")
     }
 
     @Test
@@ -670,11 +576,12 @@ struct URLSessionHTTPClientCacheTests {
 
 // MARK: - Cache Test Helpers
 
-private func makeCacheableClient(baseURL: URL) -> URLSessionHTTPClient {
-    let config = URLSessionConfiguration.ephemeral
-    config.urlCache = URLCache(memoryCapacity: 10_000_000, diskCapacity: 0)
-    let session = URLSession(configuration: config)
-    return URLSessionHTTPClient(urlSession: session, baseURL: baseURL, middlewares: [])
+private func makeCacheableClient(baseURL: URL) -> URLSessionClient {
+    URLSessionClient(
+        urlCache: URLCache(memoryCapacity: 10_000_000, diskCapacity: 0),
+        baseURL: baseURL,
+        middlewares: []
+    )
 }
 
 private struct CacheableModel: Codable, Sendable, Equatable {
@@ -682,33 +589,27 @@ private struct CacheableModel: Codable, Sendable, Equatable {
     let name: String
 }
 
-private struct CacheableRequest: HTTPRequest {
+private struct CacheableRequest: Request {
     typealias RequestBody = Never
     typealias SuccessResponseBody = CacheableModel
     typealias FailureResponseBody = ErrorModel
 
     static var operationID: String { "cacheable" }
-    var httpMethod: HTTPMethod { .get }
+    var method: HTTPRequest.Method { .get }
     var path: String { "/test/cacheable" }
-    var headers: [String: String] { [:] }
+    var headerFields: HTTPFields { HTTPFields() }
     var queryItems: [URLQueryItem] { [] }
 
-    func createURLRequest(baseURL: URL) -> URLRequest {
-        var req = URLRequest(url: requestURL(baseURL: baseURL))
-        req.httpMethod = httpMethod.rawValue
-        return req
-    }
-
-    func decodeSuccessResponseData(_ data: Data) throws -> CacheableModel {
+    func decodeSuccessBody(from data: Data) throws -> CacheableModel {
         try JSONDecoder().decode(CacheableModel.self, from: data)
     }
 
-    func decodeFailureResponseData(_ data: Data) throws -> ErrorModel {
+    func decodeFailureBody(from data: Data) throws -> ErrorModel {
         try JSONDecoder().decode(ErrorModel.self, from: data)
     }
 }
 
-private struct CacheableRequestWithQuery: HTTPRequest {
+private struct CacheableRequestWithQuery: Request {
     typealias RequestBody = Never
     typealias SuccessResponseBody = CacheableModel
     typealias FailureResponseBody = ErrorModel
@@ -716,23 +617,16 @@ private struct CacheableRequestWithQuery: HTTPRequest {
     let filter: String
 
     static var operationID: String { "cacheable-query" }
-    var httpMethod: HTTPMethod { .get }
+    var method: HTTPRequest.Method { .get }
     var path: String { "/test/cacheable" }
-    var headers: [String: String] { [:] }
+    var headerFields: HTTPFields { HTTPFields() }
     var queryItems: [URLQueryItem] { [URLQueryItem(name: "filter", value: filter)] }
 
-    func createURLRequest(baseURL: URL) -> URLRequest {
-        var req = URLRequest(url: requestURL(baseURL: baseURL))
-        req.httpMethod = httpMethod.rawValue
-        return req
-    }
-
-    func decodeSuccessResponseData(_ data: Data) throws -> CacheableModel {
+    func decodeSuccessBody(from data: Data) throws -> CacheableModel {
         try JSONDecoder().decode(CacheableModel.self, from: data)
     }
 
-    func decodeFailureResponseData(_ data: Data) throws -> ErrorModel {
+    func decodeFailureBody(from data: Data) throws -> ErrorModel {
         try JSONDecoder().decode(ErrorModel.self, from: data)
     }
 }
-

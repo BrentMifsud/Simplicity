@@ -2,14 +2,15 @@
 
 [![Swift Package Tests](https://github.com/BrentMifsud/Simplicity/actions/workflows/ci.yaml/badge.svg?branch=main)](https://github.com/BrentMifsud/Simplicity/actions/workflows/ci.yaml)
 
-A type-safe HTTP client library for Swift, inspired by [swift-openapi-generator](https://github.com/apple/swift-openapi-generator).
+A type-safe HTTP client library for Swift, inspired by [swift-openapi-generator](https://github.com/apple/swift-openapi-generator). Built on Apple's [swift-http-types](https://github.com/apple/swift-http-types) for interoperability with the broader Swift HTTP ecosystem.
 
 ## Features
 
 - Type-safe requests with associated `RequestBody`, `SuccessResponseBody`, and `FailureResponseBody` types
+- Built on Apple's `swift-http-types` — uses `HTTPRequest.Method`, `HTTPResponse.Status`, and `HTTPFields` throughout
 - Middleware chain for request/response interception (auth, logging, retries, etc.)
 - Configurable cache policies with manual cache management
-- File uploads with `HTTPUploadRequest`
+- File uploads with `UploadRequest`
 - Built-in encoders for JSON, URL form, and multipart form data
 - Full Swift 6 concurrency support with typed throws
 
@@ -24,7 +25,7 @@ Add Simplicity to your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/BrentMifsud/Simplicity.git", from: "1.0.0")
+    .package(url: "https://github.com/BrentMifsud/Simplicity.git", from: "2.0.0")
 ]
 ```
 
@@ -37,6 +38,10 @@ Then add `Simplicity` to your target dependencies:
 )
 ```
 
+> **Note:** You do not need to add `swift-http-types` as a separate dependency. Simplicity re-exports
+> the `HTTPTypes` module, so types like `HTTPRequest.Method`, `HTTPResponse.Status`, and `HTTPFields`
+> are available directly via `import Simplicity`.
+
 ## Usage
 
 ### Defining a Request
@@ -44,7 +49,7 @@ Then add `Simplicity` to your target dependencies:
 ```swift
 import Simplicity
 
-struct LoginRequest: HTTPRequest {
+struct LoginRequest: Request {
     // Request body type
     struct Body: Encodable, Sendable {
         var username: String
@@ -55,7 +60,7 @@ struct LoginRequest: HTTPRequest {
     struct Success: Decodable, Sendable { var token: String }
     struct Failure: Decodable, Sendable { var error: String }
 
-    // Associate the types with the HTTPRequest protocol
+    // Associate the types with the Request protocol
     typealias RequestBody = Body
     typealias SuccessResponseBody = Success
     typealias FailureResponseBody = Failure
@@ -63,29 +68,29 @@ struct LoginRequest: HTTPRequest {
     // Endpoint metadata
     static var operationID: String { "login" }
     var path: String { "/login" }
-    var httpMethod: HTTPMethod { .post }
-    var headers: [String: String] { ["Accept": "application/json"] }
+    var method: HTTPRequest.Method { .post }
+    var headerFields: HTTPFields { [.contentType: "application/json"] }
     var queryItems: [URLQueryItem] { [] }
 
     // The actual body instance to send
-    var httpBody: Body
+    var body: Body
 }
 ```
 
 ### Sending Requests
 
 ```swift
-let client = URLSessionHTTPClient(
+let client = URLSessionClient(
     baseURL: URL(string: "https://api.example.com")!,
     middlewares: []
 )
 
 let response = try await client.send(
-    request: LoginRequest(httpBody: .init(username: "user", password: "pass"))
+    LoginRequest(body: .init(username: "user", password: "pass"))
 )
 
 // Decode the typed success or failure body on demand
-if response.statusCode.isSuccess {
+if response.status.kind == .successful {
     let model = try response.decodeSuccessBody()
     print(model.token)
 } else {
@@ -99,17 +104,17 @@ if response.statusCode.isSuccess {
 Use `Never?` as `RequestBody` for GET/DELETE requests:
 
 ```swift
-struct GetProfileRequest: HTTPRequest {
+struct GetProfileRequest: Request {
     typealias RequestBody = Never?
     typealias SuccessResponseBody = UserProfile
     typealias FailureResponseBody = APIError
 
     static var operationID: String { "getProfile" }
     var path: String { "/user/profile" }
-    var httpMethod: HTTPMethod { .get }
-    var headers: [String: String] { [:] }
+    var method: HTTPRequest.Method { .get }
+    var headerFields: HTTPFields { HTTPFields() }
     var queryItems: [URLQueryItem] { [] }
-    var httpBody: Never? { nil }
+    var body: Never? { nil }
 }
 ```
 
@@ -117,45 +122,51 @@ struct GetProfileRequest: HTTPRequest {
 
 Middleware intercepts requests and responses, enabling cross-cutting concerns like authentication, logging, retries, and caching.
 
-The `Middleware.Request` tuple contains:
+Middleware operates on `MiddlewareRequest` and `MiddlewareResponse` structs that embed Apple's `HTTPRequest` and `HTTPResponse` types:
 
-- `operationID: String` - Unique identifier for the operation
-- `httpMethod: HTTPMethod` - The HTTP method
-- `baseURL: URL` - Base URL for the request
-- `path: String` - Request path
-- `queryItems: [URLQueryItem]` - Query parameters
-- `headers: [String: String]` - HTTP headers
-- `httpBody: Data?` - Request body data
-- `cachePolicy: CachePolicy` - Cache policy for the request
+**`MiddlewareRequest`** contains:
+
+- `httpRequest: HTTPRequest` — Apple's type (method, URL components, header fields)
+- `body: Data?` — Request body data
+- `operationID: String` — Unique identifier for the operation
+- `baseURL: URL` — Base URL for the request
+- `cachePolicy: CachePolicy` — Cache policy for the request
+- `url: URL` — Computed full request URL
+
+**`MiddlewareResponse`** contains:
+
+- `httpResponse: HTTPResponse` — Apple's type (status, header fields)
+- `url: URL` — Final response URL
+- `body: Data` — Response body data
 
 ```swift
 struct AuthMiddleware: Middleware {
     let tokenProvider: () -> String
 
     func intercept(
-        request: Middleware.Request,
-        next: nonisolated(nonsending) @Sendable (Middleware.Request) async throws -> Middleware.Response
-    ) async throws -> Middleware.Response {
+        request: MiddlewareRequest,
+        next: nonisolated(nonsending) @Sendable (MiddlewareRequest) async throws -> MiddlewareResponse
+    ) async throws -> MiddlewareResponse {
         var req = request
-        req.headers["Authorization"] = "Bearer \(tokenProvider())"
+        req.httpRequest.headerFields[.authorization] = "Bearer \(tokenProvider())"
         return try await next(req)
     }
 }
 
 struct LoggingMiddleware: Middleware {
     func intercept(
-        request: Middleware.Request,
-        next: nonisolated(nonsending) @Sendable (Middleware.Request) async throws -> Middleware.Response
-    ) async throws -> Middleware.Response {
-        print("Request: \(request.httpMethod) \(request.baseURL)\(request.path)")
+        request: MiddlewareRequest,
+        next: nonisolated(nonsending) @Sendable (MiddlewareRequest) async throws -> MiddlewareResponse
+    ) async throws -> MiddlewareResponse {
+        print("Request: \(request.httpRequest.method) \(request.url)")
         let response = try await next(request)
-        print("Response: \(response.statusCode)")
+        print("Response: \(response.httpResponse.status)")
         return response
     }
 }
 
 // Add middlewares to the client
-let client = URLSessionHTTPClient(
+let client = URLSessionClient(
     baseURL: baseURL,
     middlewares: [AuthMiddleware(tokenProvider: { token }), LoggingMiddleware()]
 )
@@ -169,21 +180,21 @@ Control caching behavior per-request using `CachePolicy`:
 
 ```swift
 // Use server-provided cache directives (default)
-let response = try await client.send(request: request, cachePolicy: .useProtocolCachePolicy)
+let response = try await client.send(request, cachePolicy: .useProtocolCachePolicy)
 
 // Return cached data if available, otherwise fetch from network
-let response = try await client.send(request: request, cachePolicy: .returnCacheDataElseLoad)
+let response = try await client.send(request, cachePolicy: .returnCacheDataElseLoad)
 
 // Only return cached data, never fetch (offline mode)
-let response = try await client.send(request: request, cachePolicy: .returnCacheDataDontLoad)
+let response = try await client.send(request, cachePolicy: .returnCacheDataDontLoad)
 
 // Always fetch fresh data, ignoring cache
-let response = try await client.send(request: request, cachePolicy: .reloadIgnoringLocalCacheData)
+let response = try await client.send(request, cachePolicy: .reloadIgnoringLocalCacheData)
 ```
 
 ### Manual Cache Management
 
-The `HTTPClient` protocol provides methods for manual cache control:
+The `Client` protocol provides methods for manual cache control:
 
 ```swift
 // Store a response in the cache
@@ -208,7 +219,7 @@ let cache = URLCache(memoryCapacity: 10_000_000, diskCapacity: 50_000_000)
 let cacheMiddleware = CacheMiddleware(urlCache: cache)
 
 // Place after auth middleware so cache keys include the final URL
-let client = URLSessionHTTPClient(
+let client = URLSessionClient(
     baseURL: baseURL,
     middlewares: [authMiddleware, cacheMiddleware]
 )
@@ -221,17 +232,17 @@ await cacheMiddleware.clearCache()
 
 ## File Uploads
 
-Use `HTTPUploadRequest` for file uploads:
+Use `UploadRequest` for file uploads:
 
 ```swift
-struct UploadAvatarRequest: HTTPUploadRequest {
+struct UploadAvatarRequest: UploadRequest {
     typealias SuccessResponseBody = UploadResponse
     typealias FailureResponseBody = APIError
 
     static var operationID: String { "uploadAvatar" }
     var path: String { "/user/avatar" }
-    var httpMethod: HTTPMethod { .post }
-    var headers: [String: String] { ["Content-Type": "image/jpeg"] }
+    var method: HTTPRequest.Method { .post }
+    var headerFields: HTTPFields { [.contentType: "image/jpeg"] }
     var queryItems: [URLQueryItem] { [] }
 
     let imageData: Data
@@ -242,7 +253,7 @@ struct UploadAvatarRequest: HTTPUploadRequest {
 }
 
 let response = try await client.upload(
-    request: UploadAvatarRequest(imageData: imageData),
+    UploadAvatarRequest(imageData: imageData),
     timeout: .seconds(60)
 )
 ```
@@ -251,14 +262,24 @@ let response = try await client.upload(
 
 ### URL Form Encoding
 
-For `application/x-www-form-urlencoded` requests:
+For `application/x-www-form-urlencoded` requests, override `encodeBody()`:
 
 ```swift
-struct FormLoginRequest: HTTPRequest {
-    // ... type definitions ...
+struct FormLoginRequest: Request {
+    typealias RequestBody = Credentials
+    typealias SuccessResponseBody = AuthToken
+    typealias FailureResponseBody = APIError
 
-    func createURLRequest(baseURL: URL) -> URLRequest {
-        formEncodedURLRequest(baseURL: baseURL)
+    static var operationID: String { "formLogin" }
+    var path: String { "/login" }
+    var method: HTTPRequest.Method { .post }
+    var headerFields: HTTPFields { [.contentType: "application/x-www-form-urlencoded"] }
+    var queryItems: [URLQueryItem] { [] }
+
+    var body: Credentials
+
+    func encodeBody() throws -> Data? {
+        try URLFormEncoder().encode(body)
     }
 }
 ```
@@ -281,11 +302,52 @@ let parts: [MultipartFormEncoder.Part] = [
     .file(name: "avatar", filename: "photo.jpg", data: imageData, mimeType: "image/jpeg")
 ]
 let body = try encoder.encode(parts: parts)
+```
 
-var request = URLRequest(url: uploadURL)
-request.httpMethod = "POST"
-request.httpBody = body
-request.setValue(encoder.contentType, forHTTPHeaderField: "Content-Type")
+## Migration from 1.x
+
+If you're upgrading from Simplicity 1.x, here's a summary of the API changes:
+
+### Type Renames
+
+| 1.x | 2.x | Reason |
+|-----|-----|--------|
+| `HTTPClient` | `Client` | Avoids conflict with other libraries; module-scoped as `Simplicity.Client` |
+| `HTTPRequest` (protocol) | `Request` | Conflicts with `HTTPTypes.HTTPRequest` struct |
+| `HTTPUploadRequest` | `UploadRequest` | Consistent naming |
+| `HTTPResponse<S,F>` | `Response<S,F>` | Conflicts with `HTTPTypes.HTTPResponse` struct |
+| `URLSessionHTTPClient` | `URLSessionClient` | Consistent naming |
+| `HTTPMethod` (enum) | `HTTPRequest.Method` | Apple's extensible struct from `swift-http-types` |
+| `HTTPStatusCode` (enum) | `HTTPResponse.Status` | Apple's type with `.kind` categorization |
+
+### Property Renames
+
+| 1.x | 2.x |
+|-----|-----|
+| `httpMethod` | `method` |
+| `headers: [String: String]` | `headerFields: HTTPFields` |
+| `httpBody` | `body` |
+| `statusCode` | `status` |
+| `encodeHTTPBody()` | `encodeBody()` |
+| `createURLRequest(baseURL:)` | `makeHTTPRequest(baseURL:)` |
+| `decodeSuccessResponseData(_:)` | `decodeSuccessBody(from:)` |
+| `decodeFailureResponseData(_:)` | `decodeFailureBody(from:)` |
+| `send(request:)` | `send(_:)` |
+| `upload(request:)` | `upload(_:)` |
+| `statusCode.isSuccess` | `status.kind == .successful` |
+
+### Middleware Changes
+
+Middleware request/response changed from named tuples to structs wrapping Apple's types:
+
+```swift
+// 1.x — tuple fields accessed directly
+req.headers["Authorization"] = "Bearer ..."
+print(response.statusCode)
+
+// 2.x — Apple types accessed through embedded structs
+req.httpRequest.headerFields[.authorization] = "Bearer ..."
+print(response.httpResponse.status)
 ```
 
 ## License

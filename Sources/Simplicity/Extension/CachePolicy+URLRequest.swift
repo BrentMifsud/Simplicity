@@ -1,5 +1,5 @@
 //
-//  URLSession+CachePolicy.swift
+//  CachePolicy+URLRequest.swift
 //  Simplicity
 //
 //  Created by Brent Mifsud on 2025-10-10.
