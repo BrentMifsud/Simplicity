@@ -535,8 +535,6 @@ struct URLSessionClientCacheTests {
         #expect(cached.headerFields[HTTPField.Name("X-Custom")!] == "value")
     }
 
-    // URLCache in swift-corelibs-foundation does not differentiate cache entries by query parameters.
-    #if !canImport(FoundationNetworking)
     @Test
     func testCachedResponse_differentQueryParams_differentCacheEntries() async throws {
         // Arrange
@@ -555,7 +553,6 @@ struct URLSessionClientCacheTests {
         #expect(try cached1.decodeSuccessBody() == model1)
         #expect(try cached2.decodeSuccessBody() == model2)
     }
-    #endif
 
     @Test
     func testClearNetworkCache_clearsAllCachedResponses() async throws {

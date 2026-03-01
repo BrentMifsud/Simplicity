@@ -349,7 +349,7 @@ public actor URLSessionClient: Client {
     ) async throws(ClientError) where R.SuccessResponseBody: Encodable {
         let cache = urlCache ?? .shared
         let url = request.requestURL(baseURL: baseURL)
-        let urlRequest = URLRequest(url: url)
+        let urlRequest = cacheKeyRequest(for: url)
 
         let data: Data
         do {
@@ -386,7 +386,7 @@ public actor URLSessionClient: Client {
     ) async throws(ClientError) -> Response<R.SuccessResponseBody, R.FailureResponseBody> {
         let cache = urlCache ?? .shared
         let url = request.requestURL(baseURL: baseURL)
-        let urlRequest = URLRequest(url: url)
+        let urlRequest = cacheKeyRequest(for: url)
 
         guard let cachedResponse = cache.cachedResponse(for: urlRequest),
               let httpURLResponse = cachedResponse.response as? HTTPURLResponse,
@@ -407,7 +407,7 @@ public actor URLSessionClient: Client {
     ) async {
         let cache = urlCache ?? .shared
         let url = request.requestURL(baseURL: baseURL)
-        let urlRequest = URLRequest(url: url)
+        let urlRequest = cacheKeyRequest(for: url)
         cache.removeCachedResponse(for: urlRequest)
     }
 }

@@ -67,7 +67,7 @@ public actor CacheMiddleware: Middleware {
         next: nonisolated(nonsending) @Sendable (MiddlewareRequest) async throws -> MiddlewareResponse
     ) async throws -> MiddlewareResponse {
         let url = request.url
-        let urlRequest = URLRequest(url: url)
+        let urlRequest = cacheKeyRequest(for: url)
 
         // Handle cache policy
         switch request.cachePolicy {
@@ -120,7 +120,7 @@ public actor CacheMiddleware: Middleware {
         status: HTTPResponse.Status = .ok,
         headerFields: HTTPFields = HTTPFields()
     ) {
-        let urlRequest = URLRequest(url: url)
+        let urlRequest = cacheKeyRequest(for: url)
 
         var headerDict: [String: String] = [:]
         for field in headerFields {
@@ -145,7 +145,7 @@ public actor CacheMiddleware: Middleware {
     ///
     /// - Parameter url: The URL whose cached response should be removed.
     public func removeCached(for url: URL) {
-        let urlRequest = URLRequest(url: url)
+        let urlRequest = cacheKeyRequest(for: url)
         urlCache.removeCachedResponse(for: urlRequest)
     }
 
@@ -159,7 +159,7 @@ public actor CacheMiddleware: Middleware {
     /// - Parameter url: The URL to check.
     /// - Returns: `true` if a cached response exists, `false` otherwise.
     public func hasCachedResponse(for url: URL) -> Bool {
-        let urlRequest = URLRequest(url: url)
+        let urlRequest = cacheKeyRequest(for: url)
         return urlCache.cachedResponse(for: urlRequest) != nil
     }
 
