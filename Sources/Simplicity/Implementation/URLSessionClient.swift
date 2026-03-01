@@ -1,6 +1,9 @@
 public import Foundation
 public import HTTPTypes
 import HTTPTypesFoundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// A concrete HTTP client that uses `URLSession` to send requests and receive responses,
 /// with support for a configurable base URL and a chain of middlewares.

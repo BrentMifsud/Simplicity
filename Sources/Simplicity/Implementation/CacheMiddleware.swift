@@ -8,6 +8,9 @@
 public import Foundation
 public import HTTPTypes
 import HTTPTypesFoundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 /// A middleware that provides caching for HTTP responses using `URLCache`.
 ///

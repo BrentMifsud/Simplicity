@@ -49,3 +49,19 @@ jobs:
 
       - name: Run tests
         run: ${{ matrix.command }}
+
+  test-linux:
+    runs-on: ubuntu-latest
+    container: swift:6.2
+    name: Test (Linux)
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch }}
+
+      - name: Display Swift version
+        run: swift --version
+
+      - name: Run tests
+        run: swift test
