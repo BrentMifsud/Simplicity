@@ -440,6 +440,100 @@ private struct SuccessOnlyRequest: HTTPRequest {
     }
 }
 
+// MARK: - Decoding Error Tests
+
+@Suite("HTTPResponse Decoding Error Tests")
+struct HTTPResponseDecodingErrorTests {
+    @Test
+    func testDecodeSuccessBody_throwsDecodingError_withResponseBody() throws {
+        // Arrange — response body is valid JSON but wrong shape for SuccessModel
+        let mismatchedBody = Data("{\"unexpected\":\"field\"}".utf8)
+        let response = HTTPResponse<SuccessModel, ErrorModel>(
+            statusCode: .ok,
+            url: URL(string: "https://example.com/test")!,
+            headers: [:],
+            httpBody: mismatchedBody,
+            successBodyDecoder: { data in
+                try JSONDecoder().decode(SuccessModel.self, from: data)
+            },
+            failureBodyDecoder: { data in
+                try JSONDecoder().decode(ErrorModel.self, from: data)
+            }
+        )
+
+        // Act & Assert
+        do {
+            _ = try response.decodeSuccessBody()
+            Issue.record("Expected decodingError to be thrown")
+        } catch let error as ClientError {
+            guard case let .decodingError(type, responseBody, underlyingError) = error else {
+                Issue.record("Expected ClientError.decodingError, got: \(error)")
+                return
+            }
+            #expect(type == "SuccessModel")
+            #expect(responseBody == mismatchedBody)
+            #expect(underlyingError is DecodingError)
+        }
+    }
+
+    @Test
+    func testDecodeFailureBody_throwsDecodingError_withResponseBody() throws {
+        // Arrange — response body is not valid JSON at all
+        let invalidBody = Data("not json".utf8)
+        let response = HTTPResponse<SuccessModel, ErrorModel>(
+            statusCode: .badRequest,
+            url: URL(string: "https://example.com/test")!,
+            headers: [:],
+            httpBody: invalidBody,
+            successBodyDecoder: { data in
+                try JSONDecoder().decode(SuccessModel.self, from: data)
+            },
+            failureBodyDecoder: { data in
+                try JSONDecoder().decode(ErrorModel.self, from: data)
+            }
+        )
+
+        // Act & Assert
+        do {
+            _ = try response.decodeFailureBody()
+            Issue.record("Expected decodingError to be thrown")
+        } catch let error as ClientError {
+            guard case let .decodingError(type, responseBody, underlyingError) = error else {
+                Issue.record("Expected ClientError.decodingError, got: \(error)")
+                return
+            }
+            #expect(type == "ErrorModel")
+            #expect(responseBody == invalidBody)
+            #expect(underlyingError is DecodingError)
+        }
+    }
+
+    @Test
+    func testDecodingError_errorDescription_includesResponseBody() throws {
+        let body = Data("{\"wrong\":true}".utf8)
+        let error = ClientError.decodingError(
+            type: "SuccessModel",
+            responseBody: body,
+            underlyingError: DecodingError.keyNotFound(
+                AnyCodingKey(stringValue: "value"),
+                .init(codingPath: [], debugDescription: "No value for key 'value'")
+            )
+        )
+
+        let description = error.errorDescription ?? ""
+        #expect(description.contains("Failed to decode SuccessModel"))
+        #expect(description.contains("{\"wrong\":true}"))
+    }
+}
+
+/// A type-erased CodingKey for test assertions.
+private struct AnyCodingKey: CodingKey {
+    var stringValue: String
+    var intValue: Int?
+    init(stringValue: String) { self.stringValue = stringValue; self.intValue = nil }
+    init?(intValue: Int) { self.stringValue = "\(intValue)"; self.intValue = intValue }
+}
+
 // MARK: - Cache Tests
 
 @Suite("URLSessionHTTPClient Cache Tests")

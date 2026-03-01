@@ -72,16 +72,32 @@ public nonisolated struct HTTPResponse<Success: Decodable & Sendable, Failure: D
 
     /// Decodes `httpBody` into the `Success` type using the configured success decoder.
     /// - Returns: A value of type `Success`.
-    /// - Throws: Any decoding error thrown by the underlying decoder.
+    /// - Throws: `ClientError.decodingError` wrapping the underlying error and the raw response body.
     public func decodeSuccessBody() throws -> Success {
-        try successBodyDecoder(httpBody)
+        do {
+            return try successBodyDecoder(httpBody)
+        } catch {
+            throw ClientError.decodingError(
+                type: String(describing: Success.self),
+                responseBody: httpBody,
+                underlyingError: error
+            )
+        }
     }
 
     /// Decodes `httpBody` into the `Failure` type using the configured failure decoder.
     /// - Returns: A value of type `Failure`.
-    /// - Throws: Any decoding error thrown by the underlying decoder.
+    /// - Throws: `ClientError.decodingError` wrapping the underlying error and the raw response body.
     public func decodeFailureBody() throws -> Failure {
-        try failureBodyDecoder(httpBody)
+        do {
+            return try failureBodyDecoder(httpBody)
+        } catch {
+            throw ClientError.decodingError(
+                type: String(describing: Failure.self),
+                responseBody: httpBody,
+                underlyingError: error
+            )
+        }
     }
 }
 

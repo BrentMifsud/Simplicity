@@ -12,6 +12,7 @@ public nonisolated enum ClientError: Sendable, LocalizedError {
     case timedOut
     case cacheMiss
     case encodingError(type: String, underlyingError: any Error)
+    case decodingError(type: String, responseBody: Data, underlyingError: any Error)
     case transport(URLError)
     case middleware(middleware: any Middleware, underlyingError: any Error)
     case invalidResponse(String)
@@ -26,6 +27,8 @@ public nonisolated enum ClientError: Sendable, LocalizedError {
             "The request was cancelled"
         case let .encodingError(type, underlyingError):
             "Failed to encode \(type): \(underlyingError.localizedDescription)"
+        case let .decodingError(type, responseBody, underlyingError):
+            "Failed to decode \(type): \(underlyingError.localizedDescription)\nResponse body: \(String(data: responseBody, encoding: .utf8) ?? "<\(responseBody.count) bytes>")"
         case .transport(let error):
             error.localizedDescription
         case .invalidResponse(let details):
