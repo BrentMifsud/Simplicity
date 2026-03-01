@@ -1,6 +1,7 @@
 {
   "enabledPlugins": {
-    "swift-concurrency@swift-concurrency-agent-skill": true
+    "swift-concurrency@swift-concurrency-agent-skill": true,
+    "swift-lsp@claude-plugins-official": true
   },
   "extraKnownMarketplaces": {
     "swift-concurrency-agent-skill": {

@@ -40,3 +40,12 @@ The `HTTPRequest` protocol has special handling for bodyless requests:
 
 Tests use Swift Testing framework (`@Suite`, `@Test`, `#expect`). Network tests mock `URLSession` via `MockURLProtocol` configured on an ephemeral session configuration.
 - When running tests, be sure to run tests for all supported platforms
+
+## Documentation Lookup (Context7)
+
+When working on this project, **always use Context7** to look up documentation before relying on training data or web search. Use the `mcp__context7__resolve-library-id` and `mcp__context7__get-library-docs` tools.
+
+Key libraries relevant to Simplicity:
+- **Foundation** — `URLSession`, `URLRequest`, `URLCache`, `JSONEncoder`/`JSONDecoder` APIs
+- **Swift Concurrency** — actors, `async`/`await`, `@Sendable`, `@concurrent`, `nonisolated`
+- **Swift Testing** — `@Suite`, `@Test`, `#expect`, `#require`, `Issue.record`
