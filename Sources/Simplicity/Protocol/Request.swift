@@ -127,7 +127,7 @@ public extension Request where SuccessResponseBody: Decodable {
     /// Conformers can override this method for custom decoding behavior.
     func decodeSuccessBody(from data: Data) throws -> SuccessResponseBody {
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = .iso8601WithFractionalSeconds
         return try decoder.decode(SuccessResponseBody.self, from: data)
     }
 }
@@ -138,7 +138,7 @@ public extension Request where FailureResponseBody: Decodable {
     /// Conformers can override this method for custom decoding behavior.
     func decodeFailureBody(from data: Data) throws -> FailureResponseBody {
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
+        decoder.dateDecodingStrategy = .iso8601WithFractionalSeconds
         return try decoder.decode(FailureResponseBody.self, from: data)
     }
 }
