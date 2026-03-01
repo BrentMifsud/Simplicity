@@ -46,9 +46,11 @@ public nonisolated struct Response<Success: Decodable & Sendable, Failure: Decod
     public let body: Data
 
     /// The HTTP response status (e.g., `.ok`, `.notFound`, `.internalServerError`).
+    @inlinable
     public var status: HTTPResponse.Status { httpResponse.status }
 
     /// The response header fields.
+    @inlinable
     public var headerFields: HTTPFields { httpResponse.headerFields }
 
     private let successBodyDecoder: @Sendable (Data) throws -> Success

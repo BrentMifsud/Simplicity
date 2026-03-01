@@ -29,6 +29,7 @@ public struct MiddlewareResponse: Sendable {
     /// The raw response body bytes.
     public var body: Data
 
+    @inlinable
     public init(httpResponse: HTTPResponse, url: URL, body: Data) {
         self.httpResponse = httpResponse
         self.url = url

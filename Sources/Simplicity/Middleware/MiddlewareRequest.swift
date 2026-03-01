@@ -43,6 +43,7 @@ public struct MiddlewareRequest: Sendable {
     /// The cache policy governing how this request interacts with cached responses.
     public var cachePolicy: CachePolicy
 
+    @inlinable
     public init(
         httpRequest: HTTPRequest,
         body: Data?,
@@ -58,6 +59,7 @@ public struct MiddlewareRequest: Sendable {
     }
 
     /// The full request URL reconstructed from the HTTP request's scheme, authority, and path.
+    @inlinable
     public var url: URL {
         var string = ""
         if let scheme = httpRequest.scheme {
