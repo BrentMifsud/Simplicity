@@ -103,7 +103,9 @@ public extension Request {
             return url
         }
 
-        return url.appending(queryItems: queryItems)
+        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+        components.queryItems = queryItems
+        return components.url!
     }
 }
 

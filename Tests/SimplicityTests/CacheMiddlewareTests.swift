@@ -303,8 +303,8 @@ struct CacheMiddlewareTests {
         #expect(response2.body == data2)
 
         // Verify both are now cached separately
-        let url1 = baseURL.appending(path: "/test").appending(queryItems: [URLQueryItem(name: "filter", value: "a")])
-        let url2 = baseURL.appending(path: "/test").appending(queryItems: [URLQueryItem(name: "filter", value: "b")])
+        let url1 = makeURL(base: baseURL, path: "/test", queryItems: [URLQueryItem(name: "filter", value: "a")])
+        let url2 = makeURL(base: baseURL, path: "/test", queryItems: [URLQueryItem(name: "filter", value: "b")])
         #expect(await middleware.hasCachedResponse(for: url1))
         #expect(await middleware.hasCachedResponse(for: url2))
 
@@ -387,10 +387,7 @@ private func makeMiddlewareRequest(
     queryItems: [URLQueryItem] = [],
     cachePolicy: CachePolicy
 ) -> MiddlewareRequest {
-    var url = baseURL.appending(path: path)
-    if !queryItems.isEmpty {
-        url = url.appending(queryItems: queryItems)
-    }
+    let url = makeURL(base: baseURL, path: path, queryItems: queryItems)
     let httpRequest = HTTPRequest(method: .get, url: url, headerFields: HTTPFields())
     return MiddlewareRequest(
         httpRequest: httpRequest,
@@ -399,4 +396,12 @@ private func makeMiddlewareRequest(
         baseURL: baseURL,
         cachePolicy: cachePolicy
     )
+}
+
+private func makeURL(base: URL, path: String, queryItems: [URLQueryItem] = []) -> URL {
+    let url = base.appending(path: path)
+    guard !queryItems.isEmpty else { return url }
+    var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+    components.queryItems = queryItems
+    return components.url!
 }
