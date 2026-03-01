@@ -7,7 +7,7 @@
 
 public import Foundation
 #if canImport(FoundationNetworking)
-public import FoundationNetworking
+import FoundationNetworking
 #endif
 
 public nonisolated enum ClientError: Sendable, LocalizedError {

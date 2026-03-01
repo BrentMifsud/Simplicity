@@ -2,7 +2,7 @@ public import Foundation
 public import HTTPTypes
 import HTTPTypesFoundation
 #if canImport(FoundationNetworking)
-import FoundationNetworking
+public import FoundationNetworking
 #endif
 
 /// A ``Transport`` backed by a real `URLSession`.

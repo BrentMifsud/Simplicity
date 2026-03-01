@@ -2,7 +2,7 @@ public import Foundation
 public import HTTPTypes
 import HTTPTypesFoundation
 #if canImport(FoundationNetworking)
-import FoundationNetworking
+public import FoundationNetworking
 #endif
 
 /// A concrete HTTP client that uses `URLSession` to send requests and receive responses,
@@ -234,7 +234,11 @@ public actor URLSessionClient: Client {
             } catch let error as URLError {
                 throw .transport(error)
             } catch let error as NSError where error.domain == NSURLErrorDomain {
+                #if canImport(FoundationNetworking)
+                let urlError = URLError(URLError.Code(rawValue: error.code)!, userInfo: error.userInfo)
+                #else
                 let urlError = URLError(URLError.Code(rawValue: error.code), userInfo: error.userInfo)
+                #endif
                 if urlError.code == .cancelled {
                     throw .cancelled
                 } else if urlError.code == .timedOut {
@@ -299,7 +303,11 @@ public actor URLSessionClient: Client {
             } catch let error as URLError {
                 throw .transport(error)
             } catch let error as NSError where error.domain == NSURLErrorDomain {
+                #if canImport(FoundationNetworking)
+                let urlError = URLError(URLError.Code(rawValue: error.code)!, userInfo: error.userInfo)
+                #else
                 let urlError = URLError(URLError.Code(rawValue: error.code), userInfo: error.userInfo)
+                #endif
                 if urlError.code == .cancelled {
                     throw .cancelled
                 } else if urlError.code == .timedOut {
