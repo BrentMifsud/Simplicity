@@ -261,6 +261,8 @@ struct CacheMiddlewareTests {
         #expect(hasCached)
     }
 
+    // URLCache in swift-corelibs-foundation does not differentiate cache entries by query parameters.
+    #if !canImport(FoundationNetworking)
     @Test
     func testDifferentQueryParams_differentCacheEntries() async throws {
         // Arrange
@@ -328,6 +330,7 @@ struct CacheMiddlewareTests {
         #expect(cached1.body == data1)
         #expect(cached2.body == data2)
     }
+    #endif
 
     @Test
     func testRemoveCached_invalidatesEntry() async throws {
