@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import HTTPTypes
 @testable import Simplicity
 
 @Suite("CacheMiddleware Tests")
@@ -18,26 +19,25 @@ struct CacheMiddlewareTests {
         // Pre-populate cache
         await middleware.setCached(cachedData, for: url)
 
-        let request: Middleware.Request = (
-            operationID: "test",
-            httpMethod: .get,
+        let request = makeMiddlewareRequest(
             baseURL: baseURL,
             path: "/test",
-            queryItems: [],
-            headers: [:],
-            httpBody: nil,
             cachePolicy: .returnCacheDataElseLoad
         )
 
-        let next: @Sendable (Middleware.Request) async throws -> Middleware.Response = { _ in
-            return (statusCode: .ok, url: url, headers: [:], httpBody: networkData)
+        let next: @Sendable (MiddlewareRequest) async throws -> MiddlewareResponse = { _ in
+            return MiddlewareResponse(
+                httpResponse: HTTPResponse(status: .ok),
+                url: url,
+                body: networkData
+            )
         }
 
         // Act
         let response = try await middleware.intercept(request: request, next: next)
 
         // Assert - should return cached data, not network data
-        #expect(response.httpBody == cachedData)
+        #expect(response.body == cachedData)
     }
 
     @Test
@@ -48,26 +48,25 @@ struct CacheMiddlewareTests {
         let url = baseURL.appending(path: "/test")
         let networkData = Data("network".utf8)
 
-        let request: Middleware.Request = (
-            operationID: "test",
-            httpMethod: .get,
+        let request = makeMiddlewareRequest(
             baseURL: baseURL,
             path: "/test",
-            queryItems: [],
-            headers: [:],
-            httpBody: nil,
             cachePolicy: .returnCacheDataElseLoad
         )
 
-        let next: @Sendable (Middleware.Request) async throws -> Middleware.Response = { _ in
-            return (statusCode: .ok, url: url, headers: [:], httpBody: networkData)
+        let next: @Sendable (MiddlewareRequest) async throws -> MiddlewareResponse = { _ in
+            return MiddlewareResponse(
+                httpResponse: HTTPResponse(status: .ok),
+                url: url,
+                body: networkData
+            )
         }
 
         // Act
         let response = try await middleware.intercept(request: request, next: next)
 
         // Assert - should return network data since nothing was cached
-        #expect(response.httpBody == networkData)
+        #expect(response.body == networkData)
     }
 
     @Test
@@ -77,20 +76,19 @@ struct CacheMiddlewareTests {
         let middleware = CacheMiddleware(urlCache: cache)
         let url = baseURL.appending(path: "/test")
 
-        let request: Middleware.Request = (
-            operationID: "test",
-            httpMethod: .get,
+        let request = makeMiddlewareRequest(
             baseURL: baseURL,
             path: "/test",
-            queryItems: [],
-            headers: [:],
-            httpBody: nil,
             cachePolicy: .returnCacheDataDontLoad
         )
 
-        let next: @Sendable (Middleware.Request) async throws -> Middleware.Response = { _ in
+        let next: @Sendable (MiddlewareRequest) async throws -> MiddlewareResponse = { _ in
             Issue.record("Network should not be called")
-            return (statusCode: .ok, url: url, headers: [:], httpBody: Data())
+            return MiddlewareResponse(
+                httpResponse: HTTPResponse(status: .ok),
+                url: url,
+                body: Data()
+            )
         }
 
         // Act & Assert
@@ -116,26 +114,25 @@ struct CacheMiddlewareTests {
 
         await middleware.setCached(cachedData, for: url)
 
-        let request: Middleware.Request = (
-            operationID: "test",
-            httpMethod: .get,
+        let request = makeMiddlewareRequest(
             baseURL: baseURL,
             path: "/test",
-            queryItems: [],
-            headers: [:],
-            httpBody: nil,
             cachePolicy: .returnCacheDataDontLoad
         )
 
-        let next: @Sendable (Middleware.Request) async throws -> Middleware.Response = { _ in
-            return (statusCode: .ok, url: url, headers: [:], httpBody: networkData)
+        let next: @Sendable (MiddlewareRequest) async throws -> MiddlewareResponse = { _ in
+            return MiddlewareResponse(
+                httpResponse: HTTPResponse(status: .ok),
+                url: url,
+                body: networkData
+            )
         }
 
         // Act
         let response = try await middleware.intercept(request: request, next: next)
 
         // Assert - should return cached data, not network data
-        #expect(response.httpBody == cachedData)
+        #expect(response.body == cachedData)
     }
 
     @Test
@@ -150,26 +147,25 @@ struct CacheMiddlewareTests {
         // Pre-populate cache
         await middleware.setCached(cachedData, for: url)
 
-        let request: Middleware.Request = (
-            operationID: "test",
-            httpMethod: .get,
+        let request = makeMiddlewareRequest(
             baseURL: baseURL,
             path: "/test",
-            queryItems: [],
-            headers: [:],
-            httpBody: nil,
             cachePolicy: .reloadIgnoringLocalCacheData
         )
 
-        let next: @Sendable (Middleware.Request) async throws -> Middleware.Response = { _ in
-            return (statusCode: .ok, url: url, headers: [:], httpBody: networkData)
+        let next: @Sendable (MiddlewareRequest) async throws -> MiddlewareResponse = { _ in
+            return MiddlewareResponse(
+                httpResponse: HTTPResponse(status: .ok),
+                url: url,
+                body: networkData
+            )
         }
 
         // Act
         let response = try await middleware.intercept(request: request, next: next)
 
         // Assert - should return network data even though cache exists
-        #expect(response.httpBody == networkData)
+        #expect(response.body == networkData)
     }
 
     @Test
@@ -180,19 +176,18 @@ struct CacheMiddlewareTests {
         let url = baseURL.appending(path: "/test")
         let networkData = Data("network".utf8)
 
-        let request: Middleware.Request = (
-            operationID: "test",
-            httpMethod: .get,
+        let request = makeMiddlewareRequest(
             baseURL: baseURL,
             path: "/test",
-            queryItems: [],
-            headers: [:],
-            httpBody: nil,
             cachePolicy: .returnCacheDataElseLoad
         )
 
-        let next: @Sendable (Middleware.Request) async throws -> Middleware.Response = { _ in
-            return (statusCode: .ok, url: url, headers: [:], httpBody: networkData)
+        let next: @Sendable (MiddlewareRequest) async throws -> MiddlewareResponse = { _ in
+            return MiddlewareResponse(
+                httpResponse: HTTPResponse(status: .ok),
+                url: url,
+                body: networkData
+            )
         }
 
         // Act - first request should hit network and cache
@@ -211,19 +206,18 @@ struct CacheMiddlewareTests {
         let url = baseURL.appending(path: "/test")
         let errorData = Data("error".utf8)
 
-        let request: Middleware.Request = (
-            operationID: "test",
-            httpMethod: .get,
+        let request = makeMiddlewareRequest(
             baseURL: baseURL,
             path: "/test",
-            queryItems: [],
-            headers: [:],
-            httpBody: nil,
             cachePolicy: .returnCacheDataElseLoad
         )
 
-        let next: @Sendable (Middleware.Request) async throws -> Middleware.Response = { _ in
-            return (statusCode: .badRequest, url: url, headers: [:], httpBody: errorData)
+        let next: @Sendable (MiddlewareRequest) async throws -> MiddlewareResponse = { _ in
+            return MiddlewareResponse(
+                httpResponse: HTTPResponse(status: .badRequest),
+                url: url,
+                body: errorData
+            )
         }
 
         // Act
@@ -242,19 +236,18 @@ struct CacheMiddlewareTests {
         let url = baseURL.appending(path: "/test")
         let errorData = Data("error".utf8)
 
-        let request: Middleware.Request = (
-            operationID: "test",
-            httpMethod: .get,
+        let request = makeMiddlewareRequest(
             baseURL: baseURL,
             path: "/test",
-            queryItems: [],
-            headers: [:],
-            httpBody: nil,
             cachePolicy: .returnCacheDataElseLoad
         )
 
-        let next: @Sendable (Middleware.Request) async throws -> Middleware.Response = { _ in
-            return (statusCode: .badRequest, url: url, headers: [:], httpBody: errorData)
+        let next: @Sendable (MiddlewareRequest) async throws -> MiddlewareResponse = { _ in
+            return MiddlewareResponse(
+                httpResponse: HTTPResponse(status: .badRequest),
+                url: url,
+                body: errorData
+            )
         }
 
         // Act
@@ -273,32 +266,29 @@ struct CacheMiddlewareTests {
         let data1 = Data("data1".utf8)
         let data2 = Data("data2".utf8)
 
-        let request1: Middleware.Request = (
-            operationID: "test",
-            httpMethod: .get,
+        let request1 = makeMiddlewareRequest(
             baseURL: baseURL,
             path: "/test",
             queryItems: [URLQueryItem(name: "filter", value: "a")],
-            headers: [:],
-            httpBody: nil,
             cachePolicy: .returnCacheDataElseLoad
         )
 
-        let request2: Middleware.Request = (
-            operationID: "test",
-            httpMethod: .get,
+        let request2 = makeMiddlewareRequest(
             baseURL: baseURL,
             path: "/test",
             queryItems: [URLQueryItem(name: "filter", value: "b")],
-            headers: [:],
-            httpBody: nil,
             cachePolicy: .returnCacheDataElseLoad
         )
 
-        let next: @Sendable (Middleware.Request) async throws -> Middleware.Response = { req in
-            let url = req.baseURL.appending(path: req.path).appending(queryItems: req.queryItems)
-            let data = req.queryItems.first?.value == "a" ? data1 : data2
-            return (statusCode: .ok, url: url, headers: [:], httpBody: data)
+        let next: @Sendable (MiddlewareRequest) async throws -> MiddlewareResponse = { req in
+            let url = req.url
+            // Determine which data to return based on query
+            let isFilterA = url.absoluteString.contains("filter=a")
+            return MiddlewareResponse(
+                httpResponse: HTTPResponse(status: .ok),
+                url: url,
+                body: isFilterA ? data1 : data2
+            )
         }
 
         // Act - make both requests (will call network and cache)
@@ -306,8 +296,8 @@ struct CacheMiddlewareTests {
         let response2 = try await middleware.intercept(request: request2, next: next)
 
         // Assert - each request should return its own data
-        #expect(response1.httpBody == data1)
-        #expect(response2.httpBody == data2)
+        #expect(response1.body == data1)
+        #expect(response2.body == data2)
 
         // Verify both are now cached separately
         let url1 = baseURL.appending(path: "/test").appending(queryItems: [URLQueryItem(name: "filter", value: "a")])
@@ -316,32 +306,24 @@ struct CacheMiddlewareTests {
         #expect(await middleware.hasCachedResponse(for: url2))
 
         // Make requests again with returnCacheDataDontLoad to verify cache hit
-        let request1Cached: Middleware.Request = (
-            operationID: "test",
-            httpMethod: .get,
+        let request1Cached = makeMiddlewareRequest(
             baseURL: baseURL,
             path: "/test",
             queryItems: [URLQueryItem(name: "filter", value: "a")],
-            headers: [:],
-            httpBody: nil,
             cachePolicy: .returnCacheDataDontLoad
         )
-        let request2Cached: Middleware.Request = (
-            operationID: "test",
-            httpMethod: .get,
+        let request2Cached = makeMiddlewareRequest(
             baseURL: baseURL,
             path: "/test",
             queryItems: [URLQueryItem(name: "filter", value: "b")],
-            headers: [:],
-            httpBody: nil,
             cachePolicy: .returnCacheDataDontLoad
         )
 
         let cached1 = try await middleware.intercept(request: request1Cached, next: next)
         let cached2 = try await middleware.intercept(request: request2Cached, next: next)
 
-        #expect(cached1.httpBody == data1)
-        #expect(cached2.httpBody == data2)
+        #expect(cached1.body == data1)
+        #expect(cached2.body == data2)
     }
 
     @Test
@@ -383,4 +365,27 @@ struct CacheMiddlewareTests {
         #expect(!(await middleware.hasCachedResponse(for: url1)))
         #expect(!(await middleware.hasCachedResponse(for: url2)))
     }
+}
+
+// MARK: - Test Helpers
+
+/// Constructs a `MiddlewareRequest` for testing purposes.
+private func makeMiddlewareRequest(
+    baseURL: URL,
+    path: String,
+    queryItems: [URLQueryItem] = [],
+    cachePolicy: CachePolicy
+) -> MiddlewareRequest {
+    var url = baseURL.appending(path: path)
+    if !queryItems.isEmpty {
+        url = url.appending(queryItems: queryItems)
+    }
+    let httpRequest = HTTPRequest(method: .get, url: url, headerFields: HTTPFields())
+    return MiddlewareRequest(
+        httpRequest: httpRequest,
+        body: nil,
+        operationID: "test",
+        baseURL: baseURL,
+        cachePolicy: cachePolicy
+    )
 }

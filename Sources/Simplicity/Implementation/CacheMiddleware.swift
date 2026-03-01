@@ -6,6 +6,8 @@
 //
 
 public import Foundation
+public import HTTPTypes
+import HTTPTypesFoundation
 
 /// A middleware that provides caching for HTTP responses using `URLCache`.
 ///
@@ -25,7 +27,7 @@ public import Foundation
 /// let cache = URLCache(memoryCapacity: 10_000_000, diskCapacity: 50_000_000)
 /// let cacheMiddleware = CacheMiddleware(urlCache: cache)
 ///
-/// let client = URLSessionHTTPClient(
+/// let client = URLSessionClient(
 ///     urlSession: session,
 ///     baseURL: baseURL,
 ///     middlewares: [authMiddleware, cacheMiddleware]
@@ -41,7 +43,7 @@ public actor CacheMiddleware: Middleware {
 
     /// A predicate that determines whether a response should be cached.
     /// Defaults to caching only successful responses (2xx status codes).
-    public let shouldCacheResponse: @Sendable (Middleware.Response) -> Bool
+    public let shouldCacheResponse: @Sendable (MiddlewareResponse) -> Bool
 
     /// Creates a new cache middleware.
     ///
@@ -51,56 +53,48 @@ public actor CacheMiddleware: Middleware {
     ///     Defaults to caching only successful responses (2xx status codes).
     public init(
         urlCache: URLCache = .shared,
-        shouldCacheResponse: @escaping @Sendable (Middleware.Response) -> Bool = { $0.statusCode.isSuccess }
+        shouldCacheResponse: @escaping @Sendable (MiddlewareResponse) -> Bool = { $0.httpResponse.status.kind == .successful }
     ) {
         self.urlCache = urlCache
         self.shouldCacheResponse = shouldCacheResponse
     }
 
     public func intercept(
-        request: Middleware.Request,
-        next: nonisolated(nonsending) @Sendable (Middleware.Request) async throws -> Middleware.Response
-    ) async throws -> Middleware.Response {
-        let url = requestURL(request: request)
+        request: MiddlewareRequest,
+        next: nonisolated(nonsending) @Sendable (MiddlewareRequest) async throws -> MiddlewareResponse
+    ) async throws -> MiddlewareResponse {
+        let url = request.url
         let urlRequest = URLRequest(url: url)
 
         // Handle cache policy
         switch request.cachePolicy {
         case .returnCacheDataDontLoad:
-            // Only return cached data, never load from network
             if let cached = cachedResponse(for: urlRequest) {
                 return cached
             }
             throw ClientError.cacheMiss
 
         case .returnCacheDataElseLoad:
-            // Return cached data if available, otherwise load from network
             if let cached = cachedResponse(for: urlRequest) {
                 return cached
             }
             // Fall through to network request
 
         case .reloadIgnoringLocalCacheData, .reloadIgnoringLocalAndRemoteCacheData:
-            // Ignore cache, always load from network (but still cache the response)
             break
 
         case .reloadRevalidatingCacheData:
             // TODO: Implement proper revalidation with If-None-Match/If-Modified-Since
-            // For now, treat as reload
             break
 
         case .useProtocolCachePolicy:
-            // Check cache first, similar to returnCacheDataElseLoad
-            // In a full implementation, this would respect HTTP cache headers
             if let cached = cachedResponse(for: urlRequest) {
                 return cached
             }
         }
 
-        // Make the network request
         let response = try await next(request)
 
-        // Cache the response if appropriate
         if shouldCacheResponse(response) {
             storeCachedResponse(response, for: urlRequest)
         }
@@ -115,20 +109,29 @@ public actor CacheMiddleware: Middleware {
     /// - Parameters:
     ///   - data: The response body data to cache.
     ///   - url: The URL to use as the cache key.
-    ///   - statusCode: The HTTP status code. Defaults to `.ok`.
-    ///   - headers: The response headers. Defaults to JSON content type.
+    ///   - status: The HTTP status. Defaults to `.ok`.
+    ///   - headerFields: The response header fields. Defaults to empty (Content-Type: application/json is added automatically).
     public func setCached(
         _ data: Data,
         for url: URL,
-        statusCode: HTTPStatusCode = .ok,
-        headers: [String: String] = ["Content-Type": "application/json"]
+        status: HTTPResponse.Status = .ok,
+        headerFields: HTTPFields = HTTPFields()
     ) {
         let urlRequest = URLRequest(url: url)
+
+        var headerDict: [String: String] = [:]
+        for field in headerFields {
+            headerDict[field.name.rawName] = field.value
+        }
+        if headerDict["Content-Type"] == nil {
+            headerDict["Content-Type"] = "application/json"
+        }
+
         guard let httpResponse = HTTPURLResponse(
             url: url,
-            statusCode: statusCode.rawValue,
+            statusCode: status.code,
             httpVersion: "HTTP/1.1",
-            headerFields: headers
+            headerFields: headerDict
         ) else { return }
 
         let cachedResponse = CachedURLResponse(response: httpResponse, data: data)
@@ -159,32 +162,36 @@ public actor CacheMiddleware: Middleware {
 
     // MARK: - Private Helpers
 
-    private func cachedResponse(for urlRequest: URLRequest) -> Middleware.Response? {
+    private func cachedResponse(for urlRequest: URLRequest) -> MiddlewareResponse? {
         guard let cached = urlCache.cachedResponse(for: urlRequest),
-              let httpResponse = cached.response as? HTTPURLResponse,
-              let statusCode = HTTPStatusCode(rawValue: httpResponse.statusCode),
-              let url = httpResponse.url else {
+              let httpURLResponse = cached.response as? HTTPURLResponse,
+              let httpResponse = httpURLResponse.httpResponse,
+              let url = httpURLResponse.url else {
             return nil
         }
 
-        let headers: [String: String] = httpResponse.allHeaderFields.reduce(into: [:]) { dict, pair in
-            if let key = pair.key as? String, let value = pair.value as? String {
-                dict[key] = value
-            }
-        }
-
-        return (statusCode: statusCode, url: url, headers: headers, httpBody: cached.data)
+        return MiddlewareResponse(
+            httpResponse: httpResponse,
+            url: url,
+            body: cached.data
+        )
     }
 
-    private func storeCachedResponse(_ response: Middleware.Response, for urlRequest: URLRequest) {
+    private func storeCachedResponse(_ response: MiddlewareResponse, for urlRequest: URLRequest) {
+        // Convert HTTPFields to [String: String] for HTTPURLResponse construction
+        var headerDict: [String: String] = [:]
+        for field in response.httpResponse.headerFields {
+            headerDict[field.name.rawName] = field.value
+        }
+
         guard let httpResponse = HTTPURLResponse(
             url: response.url,
-            statusCode: response.statusCode.rawValue,
+            statusCode: response.httpResponse.status.code,
             httpVersion: "HTTP/1.1",
-            headerFields: response.headers
+            headerFields: headerDict
         ) else { return }
 
-        let cachedResponse = CachedURLResponse(response: httpResponse, data: response.httpBody)
+        let cachedResponse = CachedURLResponse(response: httpResponse, data: response.body)
         urlCache.storeCachedResponse(cachedResponse, for: urlRequest)
     }
 }

@@ -1,5 +1,5 @@
 //
-//  URLSession+CachePolicy.swift
+//  CachePolicy+URLRequest.swift
 //  Simplicity
 //
 //  Created by Brent Mifsud on 2025-10-10.
@@ -8,6 +8,7 @@
 public import Foundation
 
 public extension CachePolicy {
+    @inlinable
     var urlRequestCachePolicy: URLRequest.CachePolicy {
         switch self {
         case .useProtocolCachePolicy:
