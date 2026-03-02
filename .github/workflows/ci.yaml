@@ -23,16 +23,16 @@ jobs:
             command: swift test
           - platform: iOS
             runner: macos-latest
-            command: xcodebuild test -scheme Simplicity -destination "platform=iOS Simulator,name=iPhone 17,OS=26.1,arch=arm64" -skipPackagePluginValidation
+            command: xcodebuild test -scheme Simplicity -destination "platform=iOS Simulator,name=iPhone 17" -skipPackagePluginValidation
           - platform: tvOS
             runner: macos-latest
-            command: xcodebuild test -scheme Simplicity -destination "platform=tvOS Simulator,name=Apple TV 4k (3rd generation),OS=26.1,arch=arm64" -skipPackagePluginValidation
+            command: xcodebuild test -scheme Simplicity -destination "platform=tvOS Simulator,name=Apple TV 4k (3rd generation)" -skipPackagePluginValidation
           - platform: watchOS
             runner: macos-latest
-            command: xcodebuild test -scheme Simplicity -destination "platform=watchOS Simulator,name=Apple Watch Ultra 3 (49mm),OS=26.1,arch=arm64" -skipPackagePluginValidation
+            command: xcodebuild test -scheme Simplicity -destination "platform=watchOS Simulator,name=Apple Watch Ultra 3 (49mm)" -skipPackagePluginValidation
           - platform: visionOS
             runner: macos-latest
-            command: xcodebuild test -scheme Simplicity -destination "platform=visionOS Simulator,name=Apple Vision Pro,OS=26.1,arch=arm64" -skipPackagePluginValidation
+            command: xcodebuild test -scheme Simplicity -destination "platform=visionOS Simulator,name=Apple Vision Pro" -skipPackagePluginValidation
           - platform: Linux
             runner: ubuntu-latest
             container: swift:6.2
