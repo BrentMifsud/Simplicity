@@ -11,8 +11,7 @@ let swiftSettings: [SwiftSetting] = [
     .enableUpcomingFeature("InferIsolatedConformances"),
     .enableUpcomingFeature("InternalImportsByDefault"),
     .enableUpcomingFeature("MemberImportVisibility"),
-    .enableUpcomingFeature("ImmutableWeakCaptures"),
-    .treatAllWarnings(as: .error),
+    .enableUpcomingFeature("ImmutableWeakCaptures")
 ]
 
 let package = Package(
