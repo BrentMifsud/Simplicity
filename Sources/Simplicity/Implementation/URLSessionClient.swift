@@ -1,6 +1,9 @@
 public import Foundation
 public import HTTPTypes
 import HTTPTypesFoundation
+#if canImport(FoundationNetworking)
+public import FoundationNetworking
+#endif
 
 /// A concrete HTTP client that uses `URLSession` to send requests and receive responses,
 /// with support for a configurable base URL and a chain of middlewares.
@@ -231,7 +234,11 @@ public actor URLSessionClient: Client {
             } catch let error as URLError {
                 throw .transport(error)
             } catch let error as NSError where error.domain == NSURLErrorDomain {
+                #if canImport(FoundationNetworking)
+                let urlError = URLError(URLError.Code(rawValue: error.code)!, userInfo: error.userInfo)
+                #else
                 let urlError = URLError(URLError.Code(rawValue: error.code), userInfo: error.userInfo)
+                #endif
                 if urlError.code == .cancelled {
                     throw .cancelled
                 } else if urlError.code == .timedOut {
@@ -296,7 +303,11 @@ public actor URLSessionClient: Client {
             } catch let error as URLError {
                 throw .transport(error)
             } catch let error as NSError where error.domain == NSURLErrorDomain {
+                #if canImport(FoundationNetworking)
+                let urlError = URLError(URLError.Code(rawValue: error.code)!, userInfo: error.userInfo)
+                #else
                 let urlError = URLError(URLError.Code(rawValue: error.code), userInfo: error.userInfo)
+                #endif
                 if urlError.code == .cancelled {
                     throw .cancelled
                 } else if urlError.code == .timedOut {
@@ -338,7 +349,7 @@ public actor URLSessionClient: Client {
     ) async throws(ClientError) where R.SuccessResponseBody: Encodable {
         let cache = urlCache ?? .shared
         let url = request.requestURL(baseURL: baseURL)
-        let urlRequest = URLRequest(url: url)
+        let urlRequest = cacheKeyRequest(for: url)
 
         let data: Data
         do {
@@ -375,7 +386,7 @@ public actor URLSessionClient: Client {
     ) async throws(ClientError) -> Response<R.SuccessResponseBody, R.FailureResponseBody> {
         let cache = urlCache ?? .shared
         let url = request.requestURL(baseURL: baseURL)
-        let urlRequest = URLRequest(url: url)
+        let urlRequest = cacheKeyRequest(for: url)
 
         guard let cachedResponse = cache.cachedResponse(for: urlRequest),
               let httpURLResponse = cachedResponse.response as? HTTPURLResponse,
@@ -396,7 +407,7 @@ public actor URLSessionClient: Client {
     ) async {
         let cache = urlCache ?? .shared
         let url = request.requestURL(baseURL: baseURL)
-        let urlRequest = URLRequest(url: url)
+        let urlRequest = cacheKeyRequest(for: url)
         cache.removeCachedResponse(for: urlRequest)
     }
 }

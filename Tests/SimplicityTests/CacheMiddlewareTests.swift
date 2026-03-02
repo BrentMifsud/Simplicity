@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import Testing
 import HTTPTypes
 @testable import Simplicity
@@ -10,7 +13,7 @@ struct CacheMiddlewareTests {
     @Test
     func testReturnCacheDataElseLoad_returnsCachedResponse_whenAvailable() async throws {
         // Arrange
-        let cache = URLCache(memoryCapacity: 10_000_000, diskCapacity: 0)
+        let cache = makeTestCache()
         let middleware = CacheMiddleware(urlCache: cache)
         let url = baseURL.appending(path: "/test")
         let cachedData = Data("cached".utf8)
@@ -43,7 +46,7 @@ struct CacheMiddlewareTests {
     @Test
     func testReturnCacheDataElseLoad_callsNetwork_whenNotCached() async throws {
         // Arrange
-        let cache = URLCache(memoryCapacity: 10_000_000, diskCapacity: 0)
+        let cache = makeTestCache()
         let middleware = CacheMiddleware(urlCache: cache)
         let url = baseURL.appending(path: "/test")
         let networkData = Data("network".utf8)
@@ -72,7 +75,7 @@ struct CacheMiddlewareTests {
     @Test
     func testReturnCacheDataDontLoad_throwsCacheMiss_whenNotCached() async throws {
         // Arrange
-        let cache = URLCache(memoryCapacity: 10_000_000, diskCapacity: 0)
+        let cache = makeTestCache()
         let middleware = CacheMiddleware(urlCache: cache)
         let url = baseURL.appending(path: "/test")
 
@@ -106,7 +109,7 @@ struct CacheMiddlewareTests {
     @Test
     func testReturnCacheDataDontLoad_returnsCached_whenAvailable() async throws {
         // Arrange
-        let cache = URLCache(memoryCapacity: 10_000_000, diskCapacity: 0)
+        let cache = makeTestCache()
         let middleware = CacheMiddleware(urlCache: cache)
         let url = baseURL.appending(path: "/test")
         let cachedData = Data("cached".utf8)
@@ -138,7 +141,7 @@ struct CacheMiddlewareTests {
     @Test
     func testReloadIgnoringLocalCacheData_alwaysCallsNetwork() async throws {
         // Arrange
-        let cache = URLCache(memoryCapacity: 10_000_000, diskCapacity: 0)
+        let cache = makeTestCache()
         let middleware = CacheMiddleware(urlCache: cache)
         let url = baseURL.appending(path: "/test")
         let cachedData = Data("cached".utf8)
@@ -171,7 +174,7 @@ struct CacheMiddlewareTests {
     @Test
     func testCachesSuccessResponsesByDefault() async throws {
         // Arrange
-        let cache = URLCache(memoryCapacity: 10_000_000, diskCapacity: 0)
+        let cache = makeTestCache()
         let middleware = CacheMiddleware(urlCache: cache)
         let url = baseURL.appending(path: "/test")
         let networkData = Data("network".utf8)
@@ -201,7 +204,7 @@ struct CacheMiddlewareTests {
     @Test
     func testDoesNotCacheFailureResponsesByDefault() async throws {
         // Arrange
-        let cache = URLCache(memoryCapacity: 10_000_000, diskCapacity: 0)
+        let cache = makeTestCache()
         let middleware = CacheMiddleware(urlCache: cache)
         let url = baseURL.appending(path: "/test")
         let errorData = Data("error".utf8)
@@ -231,7 +234,7 @@ struct CacheMiddlewareTests {
     @Test
     func testCustomShouldCacheResponse_allowsCachingFailures() async throws {
         // Arrange
-        let cache = URLCache(memoryCapacity: 10_000_000, diskCapacity: 0)
+        let cache = makeTestCache()
         let middleware = CacheMiddleware(urlCache: cache) { _ in true } // Cache everything
         let url = baseURL.appending(path: "/test")
         let errorData = Data("error".utf8)
@@ -261,7 +264,7 @@ struct CacheMiddlewareTests {
     @Test
     func testDifferentQueryParams_differentCacheEntries() async throws {
         // Arrange
-        let cache = URLCache(memoryCapacity: 10_000_000, diskCapacity: 0)
+        let cache = makeTestCache()
         let middleware = CacheMiddleware(urlCache: cache)
         let data1 = Data("data1".utf8)
         let data2 = Data("data2".utf8)
@@ -300,8 +303,8 @@ struct CacheMiddlewareTests {
         #expect(response2.body == data2)
 
         // Verify both are now cached separately
-        let url1 = baseURL.appending(path: "/test").appending(queryItems: [URLQueryItem(name: "filter", value: "a")])
-        let url2 = baseURL.appending(path: "/test").appending(queryItems: [URLQueryItem(name: "filter", value: "b")])
+        let url1 = makeURL(base: baseURL, path: "/test", queryItems: [URLQueryItem(name: "filter", value: "a")])
+        let url2 = makeURL(base: baseURL, path: "/test", queryItems: [URLQueryItem(name: "filter", value: "b")])
         #expect(await middleware.hasCachedResponse(for: url1))
         #expect(await middleware.hasCachedResponse(for: url2))
 
@@ -329,7 +332,7 @@ struct CacheMiddlewareTests {
     @Test
     func testRemoveCached_invalidatesEntry() async throws {
         // Arrange
-        let cache = URLCache(memoryCapacity: 10_000_000, diskCapacity: 0)
+        let cache = makeTestCache()
         let middleware = CacheMiddleware(urlCache: cache)
         let url = baseURL.appending(path: "/test")
         let cachedData = Data("cached".utf8)
@@ -347,7 +350,7 @@ struct CacheMiddlewareTests {
     @Test
     func testClearCache_removesAllEntries() async throws {
         // Arrange
-        let cache = URLCache(memoryCapacity: 10_000_000, diskCapacity: 0)
+        let cache = makeTestCache()
         let middleware = CacheMiddleware(urlCache: cache)
         let url1 = baseURL.appending(path: "/test1")
         let url2 = baseURL.appending(path: "/test2")
@@ -369,6 +372,14 @@ struct CacheMiddlewareTests {
 
 // MARK: - Test Helpers
 
+private func makeTestCache() -> URLCache {
+    #if canImport(FoundationNetworking)
+    URLCache(memoryCapacity: 10_000_000, diskCapacity: 0, diskPath: nil)
+    #else
+    URLCache(memoryCapacity: 10_000_000, diskCapacity: 0)
+    #endif
+}
+
 /// Constructs a `MiddlewareRequest` for testing purposes.
 private func makeMiddlewareRequest(
     baseURL: URL,
@@ -376,10 +387,7 @@ private func makeMiddlewareRequest(
     queryItems: [URLQueryItem] = [],
     cachePolicy: CachePolicy
 ) -> MiddlewareRequest {
-    var url = baseURL.appending(path: path)
-    if !queryItems.isEmpty {
-        url = url.appending(queryItems: queryItems)
-    }
+    let url = makeURL(base: baseURL, path: path, queryItems: queryItems)
     let httpRequest = HTTPRequest(method: .get, url: url, headerFields: HTTPFields())
     return MiddlewareRequest(
         httpRequest: httpRequest,
@@ -388,4 +396,12 @@ private func makeMiddlewareRequest(
         baseURL: baseURL,
         cachePolicy: cachePolicy
     )
+}
+
+private func makeURL(base: URL, path: String, queryItems: [URLQueryItem] = []) -> URL {
+    let url = base.appending(path: path)
+    guard !queryItems.isEmpty else { return url }
+    var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+    components.queryItems = queryItems
+    return components.url!
 }

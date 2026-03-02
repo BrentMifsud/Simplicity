@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 import Testing
 import HTTPTypes
 @testable import Simplicity
@@ -577,8 +580,13 @@ struct URLSessionClientCacheTests {
 // MARK: - Cache Test Helpers
 
 private func makeCacheableClient(baseURL: URL) -> URLSessionClient {
-    URLSessionClient(
-        urlCache: URLCache(memoryCapacity: 10_000_000, diskCapacity: 0),
+    #if canImport(FoundationNetworking)
+    let cache = URLCache(memoryCapacity: 10_000_000, diskCapacity: 0, diskPath: nil)
+    #else
+    let cache = URLCache(memoryCapacity: 10_000_000, diskCapacity: 0)
+    #endif
+    return URLSessionClient(
+        urlCache: cache,
         baseURL: baseURL,
         middlewares: []
     )

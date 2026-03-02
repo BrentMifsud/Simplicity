@@ -5,10 +5,14 @@
 //  Created by Brent Mifsud on 2025-10-10.
 //
 
+#if canImport(FoundationNetworking)
+import Foundation
+public import FoundationNetworking
+#else
 public import Foundation
+#endif
 
 public extension CachePolicy {
-    @inlinable
     var urlRequestCachePolicy: URLRequest.CachePolicy {
         switch self {
         case .useProtocolCachePolicy:

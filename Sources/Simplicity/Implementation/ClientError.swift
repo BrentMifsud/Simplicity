@@ -6,6 +6,9 @@
 //
 
 public import Foundation
+#if canImport(FoundationNetworking)
+import FoundationNetworking
+#endif
 
 public nonisolated enum ClientError: Sendable, LocalizedError {
     case cancelled
