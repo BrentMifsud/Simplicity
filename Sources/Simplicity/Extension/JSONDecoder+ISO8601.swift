@@ -5,14 +5,14 @@
 //  Created by Brent Mifsud on 2026-03-01.
 //
 
-import Foundation
+public import Foundation
 
 extension JSONDecoder.DateDecodingStrategy {
     /// An ISO 8601 date decoding strategy that handles dates with or without fractional seconds.
     ///
     /// Unlike `.iso8601`, this strategy correctly parses dates with varying fractional second
     /// lengths (e.g., `.7Z`, `.789Z`, `.789123456Z`) across all supported platforms.
-    static let iso8601WithFractionalSeconds: JSONDecoder.DateDecodingStrategy = .custom { decoder in
+    public static let iso8601WithFractionalSeconds: JSONDecoder.DateDecodingStrategy = .custom { decoder in
         let container = try decoder.singleValueContainer()
         let string = try container.decode(String.self)
 
