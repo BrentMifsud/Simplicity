@@ -86,10 +86,10 @@ jobs:
           echo "Resolved simulator: $DEVICE_NAME ($DEVICE_UDID)"
           echo "SIM_DESTINATION=platform=${{ matrix.sim_runtime }} Simulator,id=$DEVICE_UDID" >> "$GITHUB_ENV"
 
+      - name: Run tests (simulator)
+        if: ${{ matrix.sim_runtime }}
+        run: xcodebuild test -scheme Simplicity -destination "$SIM_DESTINATION" -skipPackagePluginValidation
+
       - name: Run tests
-        run: |
-          if [ -n "$SIM_DESTINATION" ]; then
-            xcodebuild test -scheme Simplicity -destination "$SIM_DESTINATION" -skipPackagePluginValidation
-          else
-            ${{ matrix.command }}
-          fi
+        if: ${{ !matrix.sim_runtime }}
+        run: ${{ matrix.command }}
