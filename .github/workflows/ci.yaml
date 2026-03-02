@@ -14,21 +14,31 @@ on:
 
 jobs:
   test:
-    runs-on: macos-latest
     strategy:
       fail-fast: false
       matrix:
         include:
           - platform: macOS
+            runner: macos-latest
             command: swift test
           - platform: iOS
+            runner: macos-latest
             command: xcodebuild test -scheme Simplicity -destination "platform=iOS Simulator,name=iPhone 17,OS=26.1,arch=arm64" -skipPackagePluginValidation
           - platform: tvOS
+            runner: macos-latest
             command: xcodebuild test -scheme Simplicity -destination "platform=tvOS Simulator,name=Apple TV 4k (3rd generation),OS=26.1,arch=arm64" -skipPackagePluginValidation
           - platform: watchOS
+            runner: macos-latest
             command: xcodebuild test -scheme Simplicity -destination "platform=watchOS Simulator,name=Apple Watch Ultra 3 (49mm),OS=26.1,arch=arm64" -skipPackagePluginValidation
           - platform: visionOS
+            runner: macos-latest
             command: xcodebuild test -scheme Simplicity -destination "platform=visionOS Simulator,name=Apple Vision Pro,OS=26.1,arch=arm64" -skipPackagePluginValidation
+          - platform: Linux
+            runner: ubuntu-latest
+            container: swift:6.2
+            command: swift test
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container || '' }}
     name: Test (${{ matrix.platform }})
     steps:
       - name: Checkout repository
@@ -37,6 +47,7 @@ jobs:
           ref: ${{ github.event.inputs.branch }}
 
       - name: Select latest Xcode
+        if: ${{ matrix.runner == 'macos-latest' }}
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: latest-stable
@@ -45,23 +56,8 @@ jobs:
         run: swift --version
 
       - name: Display Xcode version
+        if: ${{ matrix.runner == 'macos-latest' }}
         run: xcodebuild -version
 
       - name: Run tests
         run: ${{ matrix.command }}
-
-  test-linux:
-    runs-on: ubuntu-latest
-    container: swift:6.2
-    name: Test (Linux)
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.branch }}
-
-      - name: Display Swift version
-        run: swift --version
-
-      - name: Run tests
-        run: swift test
