@@ -23,16 +23,16 @@ jobs:
             command: swift test
           - platform: iOS
             runner: macos-latest
-            command: xcodebuild test -scheme Simplicity -destination "platform=iOS Simulator,name=iPhone 17,OS=26.1,arch=arm64" -skipPackagePluginValidation
+            sim_runtime: iOS
           - platform: tvOS
             runner: macos-latest
-            command: xcodebuild test -scheme Simplicity -destination "platform=tvOS Simulator,name=Apple TV 4k (3rd generation),OS=26.1,arch=arm64" -skipPackagePluginValidation
+            sim_runtime: tvOS
           - platform: watchOS
             runner: macos-latest
-            command: xcodebuild test -scheme Simplicity -destination "platform=watchOS Simulator,name=Apple Watch Ultra 3 (49mm),OS=26.1,arch=arm64" -skipPackagePluginValidation
+            sim_runtime: watchOS
           - platform: visionOS
             runner: macos-latest
-            command: xcodebuild test -scheme Simplicity -destination "platform=visionOS Simulator,name=Apple Vision Pro,OS=26.1,arch=arm64" -skipPackagePluginValidation
+            sim_runtime: visionOS
           - platform: Linux
             runner: ubuntu-latest
             container: swift:6.2
@@ -59,5 +59,37 @@ jobs:
         if: ${{ matrix.runner == 'macos-latest' }}
         run: xcodebuild -version
 
+      - name: Resolve simulator destination
+        if: ${{ matrix.sim_runtime }}
+        run: |
+          RUNTIME="${{ matrix.sim_runtime }}"
+          # visionOS runtimes may use 'xrOS' in the identifier
+          case "$RUNTIME" in
+            visionOS) PATTERN="visionOS|xrOS" ;;
+            *) PATTERN="$RUNTIME" ;;
+          esac
+
+          DEVICE_INFO=$(xcrun simctl list devices available -j | jq -r --arg p "$PATTERN" '
+            [.devices | to_entries[] | select(.key | test($p)) | .value[] | select(.isAvailable == true)]
+            | first | "\(.udid)|\(.name)"
+          ')
+
+          DEVICE_UDID="${DEVICE_INFO%%|*}"
+          DEVICE_NAME="${DEVICE_INFO##*|}"
+
+          if [ "$DEVICE_UDID" = "null" ] || [ -z "$DEVICE_UDID" ]; then
+            echo "::error::No available ${{ matrix.sim_runtime }} simulator found"
+            xcrun simctl list devices available
+            exit 1
+          fi
+
+          echo "Resolved simulator: $DEVICE_NAME ($DEVICE_UDID)"
+          echo "SIM_DESTINATION=platform=${{ matrix.sim_runtime }} Simulator,id=$DEVICE_UDID" >> "$GITHUB_ENV"
+
+      - name: Run tests (simulator)
+        if: ${{ matrix.sim_runtime }}
+        run: xcodebuild test -scheme Simplicity -destination "$SIM_DESTINATION" -skipPackagePluginValidation
+
       - name: Run tests
+        if: ${{ !matrix.sim_runtime }}
         run: ${{ matrix.command }}
